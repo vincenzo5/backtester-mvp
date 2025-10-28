@@ -1,0 +1,65 @@
+last_updated: '2025-10-27T18:41:49.386947'
+exchange: coinbase
+timeframes:
+- 1m
+- 5m
+- 15m
+- 30m
+- 1h
+- 2h
+- 6h
+- 1d
+top_markets:
+- BTC/USD
+- ETH/USD
+- SOL/USD
+- USDT/USD
+- ADA/USD
+- AVAX/USD
+- DOT/USD
+- LINK/USD
+- UNI/USD
+- ATOM/USD
+- XRP/USD
+- LTC/USD
+- DOGE/USD
+- SHIB/USD
+- BTC/USDC
+- ETH/USDC
+- XRP/USDC
+- SOL/USDC
+- ZEC/USD
+- ZEC/USDC
+- SUI/USD
+- SUI/USDC
+- DOGE/USDC
+- LINK/USDC
+- TRUMP/USD
+- TRUMP/USDC
+- ETH/USDT
+- HBAR/USD
+- HBAR/USDC
+- CLANKER/USD
+- CLANKER/USDC
+- BTC/USDT
+- ADA/USDC
+- DIA/USD
+- DIA/USDC
+- LTC/USDC
+- TAO/USD
+- TAO/USDC
+- PUMP/USD
+- PUMP/USDC
+- AVNT/USD
+- AVNT/USDC
+- PENGU/USD
+- PENGU/USDC
+- XLM/USD
+- XLM/USDC
+- AVAX/USDC
+- ZORA/USD
+- ZORA/USDC
+- BONK/USD
+fees:
+  maker: 0.004
+  taker: 0.006
