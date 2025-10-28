@@ -73,12 +73,22 @@ def save_results_csv(results: List[BacktestResult], config_manager, skipped: Lis
 
 
 def save_performance_metrics(config_manager, metrics):
-    """Save performance metrics to JSONL file."""
+    """Save performance metrics to JSONL file with parallel execution info."""
     os.makedirs('performance', exist_ok=True)
+    
+    # Load hardware profile for signature
+    try:
+        from backtest.execution.hardware import HardwareProfile
+        hardware = HardwareProfile.get_or_create()
+        hardware_signature = hardware.signature
+    except Exception:
+        hardware_signature = 'unknown'
     
     performance_entry = {
         'timestamp': datetime.now().isoformat(),
         'strategy_name': config_manager.get_strategy_name(),
+        'hardware_signature': hardware_signature,
+        'worker_count': metrics.get('worker_count', 1),
         'total_combinations': metrics['total_combinations'],
         'successful_runs': metrics['successful_runs'],
         'skipped_runs': metrics['skipped_runs'],

@@ -153,6 +153,7 @@ class ConsoleOutput:
         print(f"Successful: {results.successful_runs}")
         print(f"Skipped: {results.skipped_runs}")
         print(f"Failed: {results.failed_runs}")
+        print(f"Parallel workers: {results.worker_count}")
         print(f"Total execution time: {results.total_execution_time:.2f} seconds")
         print(f"Average time per run: {results.avg_time_per_run:.3f} seconds")
         print(f"Data load time: {results.data_load_time:.2f} seconds")

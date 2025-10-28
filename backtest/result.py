@@ -76,6 +76,7 @@ class RunResults:
     data_load_time: float = 0.0
     backtest_compute_time: float = 0.0
     report_generation_time: float = 0.0
+    worker_count: int = 1  # Number of parallel workers used
     
     def get_metrics(self) -> Dict[str, Any]:
         """Get performance metrics dictionary."""
@@ -88,7 +89,8 @@ class RunResults:
             'avg_time_per_run': self.avg_time_per_run,
             'data_load_time': self.data_load_time,
             'backtest_compute_time': self.backtest_compute_time,
-            'report_generation_time': self.report_generation_time
+            'report_generation_time': self.report_generation_time,
+            'worker_count': self.worker_count
         }
     
     def get_sorted_results(self, reverse: bool = True) -> List[BacktestResult]:

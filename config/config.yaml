@@ -45,3 +45,15 @@ data:
   cache_enabled: true
   cache_directory: data/cache
 
+# Parallel Execution Settings
+parallel:
+  # Execution mode
+  mode: auto  # Options: auto, manual
+  
+  # Manual override (only used if mode=manual)
+  max_workers: null  # null = auto-detect, or specify 1-N
+  
+  # Auto-tuning parameters
+  memory_safety_factor: 0.75  # Use max 75% of available RAM
+  cpu_reserve_cores: 1        # Reserve N cores for system
+

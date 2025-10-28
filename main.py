@@ -5,6 +5,7 @@ Run: python main.py
 Quick test: python main.py --quick
 """
 
+import sys
 import time
 
 from cli.parser import parse_arguments
@@ -15,8 +16,26 @@ from backtest.metrics import save_results_csv, save_performance_metrics
 from strategies import get_strategy_class
 
 
+def validate_dependencies():
+    """Ensure required dependencies are available."""
+    try:
+        import psutil
+    except ImportError:
+        print("\n" + "="*80)
+        print("ERROR: Missing required dependency")
+        print("="*80)
+        print("\npsutil is required for parallel execution.")
+        print("\nInstall dependencies:")
+        print("  pip install -r requirements.txt")
+        print("\n" + "="*80)
+        sys.exit(1)
+
+
 def main():
     """Main entry point for the backtesting engine."""
+    # Validate dependencies first
+    validate_dependencies()
+    
     # Parse CLI arguments
     args = parse_arguments()
     

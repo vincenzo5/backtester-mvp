@@ -201,4 +201,55 @@ class ConfigManager:
     def get_slippage(self) -> float:
         """Get slippage rate."""
         return self.get_trading_config().get('slippage', 0.0)
+    
+    def get_parallel_mode(self) -> str:
+        """Get parallel execution mode: 'auto' or 'manual'."""
+        return self.config.get('parallel', {}).get('mode', 'auto')
+    
+    def get_manual_workers(self) -> Optional[int]:
+        """Get manual worker count (only used if mode='manual')."""
+        workers = self.config.get('parallel', {}).get('max_workers')
+        return int(workers) if workers is not None else None
+    
+    def get_memory_safety_factor(self) -> float:
+        """Get memory safety factor for parallel execution."""
+        return self.config.get('parallel', {}).get('memory_safety_factor', 0.75)
+    
+    def get_cpu_reserve_cores(self) -> int:
+        """Get number of CPU cores to reserve for system."""
+        return self.config.get('parallel', {}).get('cpu_reserve_cores', 1)
+    
+    def _to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize config for worker processes.
+        
+        Returns:
+            Dictionary containing serializable config data
+        """
+        return {
+            'config': self.config,
+            'metadata': self.metadata,
+            'profile_name': self.profile_name,
+            'config_path': self.config_path,
+            'metadata_path': self.metadata_path
+        }
+    
+    @classmethod
+    def _from_dict(cls, config_dict: Dict[str, Any]) -> 'ConfigManager':
+        """
+        Reconstruct ConfigManager in worker process.
+        
+        Args:
+            config_dict: Dictionary from _to_dict()
+        
+        Returns:
+            ConfigManager instance
+        """
+        instance = cls.__new__(cls)
+        instance.config = config_dict['config']
+        instance.metadata = config_dict['metadata']
+        instance.profile_name = config_dict.get('profile_name')
+        instance.config_path = config_dict.get('config_path', 'config/config.yaml')
+        instance.metadata_path = config_dict.get('metadata_path', 'config/exchange_metadata.yaml')
+        return instance
 
