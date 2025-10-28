@@ -5,57 +5,28 @@ This module handles the core backtesting logic using backtrader.
 """
 
 import backtrader as bt
-import yaml
 import time
 import pandas as pd
 
 
-def load_exchange_metadata():
-    """Load exchange metadata from YAML file."""
-    with open('config/exchange_metadata.yaml', 'r') as f:
-        return yaml.safe_load(f)
+def get_symbols_and_timeframes(config_manager):
+    """
+    Get symbols and timeframes from ConfigManager.
+    
+    Args:
+        config_manager: ConfigManager instance
+    
+    Returns:
+        tuple: (symbols, timeframes) lists
+    """
+    return config_manager.get_symbols(), config_manager.get_timeframes()
 
 
-def get_symbols_and_timeframes(config):
-    """Get symbols and timeframes from config or exchange_metadata."""
-    metadata = load_exchange_metadata()
-    
-    # Get symbols
-    symbols = config['exchange'].get('symbols')
-    if symbols is None:
-        # Use all symbols from metadata
-        symbols = metadata['top_markets']
-    elif isinstance(symbols, str):
-        # Single symbol
-        symbols = [symbols]
-    # else: already a list
-    
-    # Validate symbols against metadata
-    valid_symbols = metadata['top_markets']
-    symbols = [s for s in symbols if s in valid_symbols]
-    
-    # Get timeframes
-    timeframes = config['exchange'].get('timeframes')
-    if timeframes is None:
-        # Use all timeframes from metadata
-        timeframes = metadata['timeframes']
-    elif isinstance(timeframes, str):
-        # Single timeframe
-        timeframes = [timeframes]
-    # else: already a list
-    
-    # Validate timeframes against metadata
-    valid_timeframes = metadata['timeframes']
-    timeframes = [tf for tf in timeframes if tf in valid_timeframes]
-    
-    return symbols, timeframes
-
-
-def run_backtest(config, df, strategy_class, verbose=False):
+def run_backtest(config_manager, df, strategy_class, verbose=False):
     """Run the backtest with backtrader.
     
     Args:
-        config (dict): Configuration dictionary
+        config_manager: ConfigManager instance
         df (pandas.DataFrame): OHLCV data
         strategy_class: Strategy class to use
         verbose (bool): If True, print detailed trade logs
@@ -73,12 +44,12 @@ def run_backtest(config, df, strategy_class, verbose=False):
     # Create a cerebro entity
     cerebro = bt.Cerebro()
     
-    # Add a strategy
+    # Add a strategy with dynamic parameters
+    strategy_params = config_manager.get_strategy_params()
     cerebro.addstrategy(
         strategy_class,
-        fast_period=config['strategy']['parameters']['fast_sma_period'],
-        slow_period=config['strategy']['parameters']['slow_sma_period'],
-        printlog=verbose
+        printlog=verbose,
+        **strategy_params  # Dynamic parameter passing
     )
     
     # Create a Data Feed from pandas DataFrame
@@ -88,15 +59,14 @@ def run_backtest(config, df, strategy_class, verbose=False):
     cerebro.adddata(data)
     
     # Set our desired cash start
-    cerebro.broker.setcash(config['backtest']['initial_capital'])
+    cerebro.broker.setcash(config_manager.get_initial_capital())
     
-    # Set commission (load from exchange metadata or config)
-    from data.fetch_data import load_exchange_fees
-    commission = load_exchange_fees(config)
+    # Set commission
+    commission = config_manager.get_commission()
     cerebro.broker.setcommission(commission=commission)
     
     # Get slippage from config
-    slippage = config['trading'].get('slippage', 0.0)
+    slippage = config_manager.get_slippage()
     
     if verbose:
         # Log trading parameters
@@ -115,7 +85,7 @@ def run_backtest(config, df, strategy_class, verbose=False):
     # run_result is a list of strategy objects directly
     strategy_instance = run_result[0]
     
-    initial_value = config['backtest']['initial_capital']
+    initial_value = config_manager.get_initial_capital()
     final_value = cerebro.broker.getvalue()
     total_return = ((final_value - initial_value) / initial_value) * 100
     

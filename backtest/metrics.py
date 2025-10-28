@@ -11,10 +11,10 @@ import json
 import os
 
 
-def save_results_csv(results, config, skipped):
+def save_results_csv(results, config_manager, skipped):
     """Save results to CSV file."""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    strategy_name = config['strategy']['name']
+    strategy_name = config_manager.get_strategy_name()
     
     os.makedirs('reports', exist_ok=True)
     
@@ -44,7 +44,7 @@ def save_results_csv(results, config, skipped):
             'symbol': skip['symbol'],
             'timeframe': skip['timeframe'],
             'strategy_name': strategy_name,
-            'initial_capital': config['backtest']['initial_capital'],
+            'initial_capital': config_manager.get_initial_capital(),
             'final_value': 'N/A',
             'total_return_pct': 'N/A',
             'num_trades': 'N/A',
@@ -61,13 +61,13 @@ def save_results_csv(results, config, skipped):
     return filename
 
 
-def save_performance_metrics(config, metrics):
+def save_performance_metrics(config_manager, metrics):
     """Save performance metrics to JSONL file."""
     os.makedirs('performance', exist_ok=True)
     
     performance_entry = {
         'timestamp': datetime.now().isoformat(),
-        'strategy_name': config['strategy']['name'],
+        'strategy_name': config_manager.get_strategy_name(),
         'total_combinations': metrics['total_combinations'],
         'successful_runs': metrics['successful_runs'],
         'skipped_runs': metrics['skipped_runs'],

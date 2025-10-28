@@ -5,7 +5,6 @@ Run: python main.py
 Quick test: python main.py --quick
 """
 
-import yaml
 import time
 import argparse
 from itertools import product
@@ -13,6 +12,7 @@ from tqdm import tqdm
 from datetime import datetime
 
 # Import from refactored modules
+from config.manager import ConfigManager
 from data.fetch_data import fetch_historical_data
 from backtest.engine import run_backtest, get_symbols_and_timeframes
 from backtest.metrics import save_results_csv, print_summary_table, save_performance_metrics
@@ -22,7 +22,7 @@ def main():
     """Main function to run multi-market, multi-timeframe backtest."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Crypto backtesting engine')
-    parser.add_argument('--quick', action='store_true', 
+    parser.add_argument('--quick', action='store_true',
                        help='Run quick test: BTC/USD 1h with verbose output')
     args = parser.parse_args()
     
@@ -34,29 +34,25 @@ def main():
         print("QUICK TEST MODE: BTC/USD 1h")
     print("="*100)
     
-    # Load configuration
+    # Load configuration with ConfigManager
     print("Loading configuration...")
     config_start = time.time()
-    with open('config/config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
+    
+    # Use quick profile if --quick flag is set
+    profile_name = 'quick' if quick_test_mode else None
+    config = ConfigManager(profile_name=profile_name)
+    
     config_time = time.time() - config_start
     print(f"Config loaded in {config_time:.3f} seconds\n")
     
     # Get strategy class dynamically
-    strategy_class = get_strategy_class(config['strategy']['name'])
+    strategy_class = get_strategy_class(config.get_strategy_name())
     
     # Get symbols and timeframes
-    if quick_test_mode:
-        # Force BTC/USD 1h for quick test
-        symbols = ['BTC/USD']
-        timeframes = ['1h']
-        print(f"Quick test mode: Testing single combination")
-        print()
-    else:
-        symbols, timeframes = get_symbols_and_timeframes(config)
-        print(f"Symbols to test: {len(symbols)}")
-        print(f"Timeframes to test: {len(timeframes)}")
-        print(f"Total combinations: {len(symbols) * len(timeframes)}")
+    symbols, timeframes = get_symbols_and_timeframes(config)
+    print(f"Symbols to test: {len(symbols)}")
+    print(f"Timeframes to test: {len(timeframes)}")
+    print(f"Total combinations: {len(symbols) * len(timeframes)}")
     
     print()
     
@@ -77,8 +73,11 @@ def main():
     # Run backtests with progress bar
     print("Running backtests...\n")
     
+    # Get verbose setting from config
+    verbose_setting = config.get_verbose()
+    
     # Use progress bar only if more than one combination
-    use_progress_bar = len(combinations) > 1 and not quick_test_mode
+    use_progress_bar = len(combinations) > 1
     iterator = tqdm(combinations, desc="Progress") if use_progress_bar else combinations
     
     for symbol, timeframe in iterator:
@@ -103,8 +102,8 @@ def main():
         # Run backtest
         try:
             backtest_start = time.time()
-            # Use verbose mode for quick test or single combination
-            verbose_mode = quick_test_mode or (len(combinations) == 1 and not quick_test_mode)
+            # Use verbose mode from config or single combination
+            verbose_mode = verbose_setting or (len(combinations) == 1)
             result = run_backtest(config, df, strategy_class, verbose=verbose_mode)
             backtest_time = time.time() - backtest_start
             backtest_compute_time += backtest_time
