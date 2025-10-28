@@ -40,6 +40,11 @@ data/raw/*
 reports/*
 !reports/.gitkeep
 
+# Performance Metrics (runtime-generated, machine-specific)
+performance/*.jsonl
+performance/*.json
+!performance/.gitkeep
+
 # Environment
 .env
 .env.local
