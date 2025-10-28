@@ -1,0 +1,109 @@
+"""
+Result data classes for backtest runs.
+
+This module provides type-safe containers for backtest results and aggregated outcomes.
+"""
+
+from dataclasses import dataclass, field
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+
+
+@dataclass
+class BacktestResult:
+    """Result from a single backtest run."""
+    
+    symbol: str
+    timeframe: str
+    timestamp: str
+    initial_capital: float
+    final_value: float
+    total_return_pct: float
+    num_trades: int
+    execution_time: float
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    duration_days: Optional[int] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert result to dictionary format."""
+        return {
+            'timestamp': self.timestamp,
+            'symbol': self.symbol,
+            'timeframe': self.timeframe,
+            'initial_capital': self.initial_capital,
+            'final_value': self.final_value,
+            'total_return_pct': self.total_return_pct,
+            'num_trades': self.num_trades,
+            'execution_time': self.execution_time,
+            'start_date': self.start_date,
+            'end_date': self.end_date,
+            'duration_days': self.duration_days
+        }
+
+
+@dataclass
+class SkippedRun:
+    """Information about a skipped backtest combination."""
+    
+    symbol: str
+    timeframe: str
+    reason: str
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert skipped run to dictionary format."""
+        return {
+            'symbol': self.symbol,
+            'timeframe': self.timeframe,
+            'reason': self.reason,
+            'timestamp': self.timestamp
+        }
+
+
+@dataclass
+class RunResults:
+    """Aggregated results from multiple backtest runs."""
+    
+    results: List[BacktestResult] = field(default_factory=list)
+    skipped: List[SkippedRun] = field(default_factory=list)
+    total_combinations: int = 0
+    successful_runs: int = 0
+    skipped_runs: int = 0
+    failed_runs: int = 0
+    total_execution_time: float = 0.0
+    avg_time_per_run: float = 0.0
+    data_load_time: float = 0.0
+    backtest_compute_time: float = 0.0
+    report_generation_time: float = 0.0
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get performance metrics dictionary."""
+        return {
+            'total_combinations': self.total_combinations,
+            'successful_runs': self.successful_runs,
+            'skipped_runs': self.skipped_runs,
+            'failed_runs': self.failed_runs,
+            'total_execution_time': self.total_execution_time,
+            'avg_time_per_run': self.avg_time_per_run,
+            'data_load_time': self.data_load_time,
+            'backtest_compute_time': self.backtest_compute_time,
+            'report_generation_time': self.report_generation_time
+        }
+    
+    def get_sorted_results(self, reverse: bool = True) -> List[BacktestResult]:
+        """Get results sorted by return percentage."""
+        return sorted(
+            self.results,
+            key=lambda x: x.total_return_pct if isinstance(x.total_return_pct, (int, float)) else -999,
+            reverse=reverse
+        )
+    
+    def get_results_as_dicts(self) -> List[Dict[str, Any]]:
+        """Get all results as dictionaries for CSV export."""
+        return [result.to_dict() for result in self.results]
+    
+    def get_skipped_as_dicts(self) -> List[Dict[str, Any]]:
+        """Get all skipped runs as dictionaries for CSV export."""
+        return [skip.to_dict() for skip in self.skipped]
+

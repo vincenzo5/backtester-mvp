@@ -9,19 +9,6 @@ import time
 import pandas as pd
 
 
-def get_symbols_and_timeframes(config_manager):
-    """
-    Get symbols and timeframes from ConfigManager.
-    
-    Args:
-        config_manager: ConfigManager instance
-    
-    Returns:
-        tuple: (symbols, timeframes) lists
-    """
-    return config_manager.get_symbols(), config_manager.get_timeframes()
-
-
 def run_backtest(config_manager, df, strategy_class, verbose=False):
     """Run the backtest with backtrader.
     
