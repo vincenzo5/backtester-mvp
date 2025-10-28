@@ -124,8 +124,9 @@ class HardwareProfile:
         """
         try:
             import tracemalloc
+            import pandas as pd
             from config.manager import ConfigManager
-            from data.fetch_data import fetch_historical_data
+            from data.cache_manager import read_cache
             from backtest.engine import run_backtest
             from strategies import get_strategy_class
             
@@ -143,7 +144,16 @@ class HardwareProfile:
             # Find any combination with cached data
             for symbol in symbols[:5]:  # Try first 5 symbols
                 for timeframe in timeframes[:2]:  # Try first 2 timeframes
-                    df = fetch_historical_data(config, symbol=symbol, timeframe=timeframe)
+                    df = read_cache(symbol, timeframe)
+                    
+                    # Filter by backtest date range if needed
+                    if not df.empty:
+                        start_date = config.get_start_date()
+                        end_date = config.get_end_date()
+                        start_dt = pd.to_datetime(start_date)
+                        end_dt = pd.to_datetime(end_date)
+                        df = df[(df.index >= start_dt) & (df.index <= end_dt)]
+                    
                     if not df.empty:
                         # Start memory tracking
                         tracemalloc.start()

@@ -44,6 +44,7 @@ strategy:
 data:
   cache_enabled: true
   cache_directory: data/cache
+  historical_start_date: "2017-01-01"  # Default start date for data collection (configurable)
 
 # Parallel Execution Settings
 parallel:

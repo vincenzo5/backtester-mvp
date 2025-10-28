@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Scheduler service - runs continuously and updates data daily
+  scheduler:
+    build: .
+    container_name: data-scheduler
+    command: python services/scheduler_daemon.py
+    restart: unless-stopped
+    volumes:
+      - ./data/cache:/app/data/cache           # Persist cached data
+      - ./config:/app/config                   # Config files (read/write)
+      - ./logs:/app/logs                       # Log files
+      - ./performance:/app/performance         # Performance metrics
+    environment:
+      - TZ=${TZ:-UTC}
+      - UPDATE_HOUR=${UPDATE_HOUR:-1}          # Default 1 AM UTC
+      - UPDATE_MINUTE=${UPDATE_MINUTE:-0}
+    depends_on: []
+    networks:
+      - backtester-network
+
+  # Backtest service - run on-demand
+  backtest:
+    build: .
+    container_name: backtester
+    command: python main.py
+    volumes:
+      - ./data/cache:/app/data/cache           # Read cached data
+      - ./config:/app/config                   # Config files (read-only)
+      - ./reports:/app/reports                 # Save reports
+      - ./performance:/app/performance         # Performance logs
+      - ./logs:/app/logs                       # Logs (optional)
+    profiles:
+      - tools  # Don't start automatically
+    networks:
+      - backtester-network
+
+  # Bulk fetch service - run once for initial data collection
+  bulk-fetch:
+    build: .
+    container_name: bulk-fetcher
+    command: python scripts/bulk_fetch.py
+    volumes:
+      - ./data/cache:/app/data/cache
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./performance:/app/performance
+    profiles:
+      - tools  # Don't start automatically
+    networks:
+      - backtester-network
+
+networks:
+  backtester-network:
+    driver: bridge
+

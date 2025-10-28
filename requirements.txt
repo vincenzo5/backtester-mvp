@@ -14,3 +14,9 @@ tqdm>=4.66.0  # Progress bar for multi-run backtests
 # Required for parallel execution
 psutil>=5.9.0  # Hardware detection and system monitoring
 
+# Required for scheduled data updates
+APScheduler>=3.10.0  # Task scheduling for daily updates
+
+# Testing
+pytest>=7.4.0  # Test framework for compatibility tests
+

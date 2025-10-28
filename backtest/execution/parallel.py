@@ -42,8 +42,18 @@ def _run_backtest_worker(work_item: Dict[str, Any]) -> Dict[str, Any]:
         strategy_class = get_strategy_class(work_item['strategy_name'])
         
         # Load data from cache
-        from data.fetch_data import fetch_historical_data
-        df = fetch_historical_data(config, work_item['symbol'], work_item['timeframe'])
+        from data.cache_manager import read_cache
+        import pandas as pd
+        
+        df = read_cache(work_item['symbol'], work_item['timeframe'])
+        
+        # Filter by backtest date range if needed
+        if not df.empty:
+            start_date = config.get_start_date()
+            end_date = config.get_end_date()
+            start_dt = pd.to_datetime(start_date)
+            end_dt = pd.to_datetime(end_date)
+            df = df[(df.index >= start_dt) & (df.index <= end_dt)]
         
         if df.empty:
             return {

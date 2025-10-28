@@ -219,6 +219,10 @@ class ConfigManager:
         """Get number of CPU cores to reserve for system."""
         return self.config.get('parallel', {}).get('cpu_reserve_cores', 1)
     
+    def get_historical_start_date(self) -> str:
+        """Get historical start date for data collection."""
+        return self.config.get('data', {}).get('historical_start_date', '2017-01-01')
+    
     def _to_dict(self) -> Dict[str, Any]:
         """
         Serialize config for worker processes.
