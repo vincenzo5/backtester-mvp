@@ -6,12 +6,16 @@ all available historical data for all combinations, with validation and auto-cle
 """
 
 import os
+import sys
 import time
 import yaml
 import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+
+# Add parent directory to path for imports (needed for Docker)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.manager import ConfigManager
 from data.fetcher import create_exchange, fetch_historical, MarketNotFoundError, FetchError
@@ -80,7 +84,16 @@ def fetch_and_save_market(exchange, symbol, timeframe, start_date, end_date, con
         df, api_requests = fetch_historical(exchange, symbol, timeframe, start_date, end_date)
         
         if df.empty:
-            return False, None, api_requests, "api", "No data available"
+            # Check if this might be a market that doesn't exist
+            # Try a quick test fetch without date restrictions to confirm
+            try:
+                test_ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=1)
+                if not test_ohlcv:
+                    return False, None, api_requests, "api", "Market exists but no historical data available"
+                else:
+                    return False, None, api_requests, "api", "No data available for requested date range"
+            except:
+                return False, None, api_requests, "api", "Market may not exist on exchange"
         
         # Validate and clean data
         validation_result = validate_data(df, timeframe)

@@ -24,21 +24,31 @@ pip install -r requirements.txt
 
 ### Using Docker (Recommended)
 
-1. **Initial data collection:**
-   ```bash
-   docker-compose build
-   docker-compose run --rm bulk-fetch
-   ```
+**Single command startup:**
+```bash
+./scripts/start.sh
+```
 
-2. **Start daily update scheduler:**
-   ```bash
-   docker-compose up -d scheduler
-   ```
+Or on Windows:
+```powershell
+.\scripts\start.ps1
+```
 
-3. **Run backtests:**
-   ```bash
-   docker-compose run --rm backtest
-   ```
+This will:
+- Build the Docker image (if needed)
+- Offer to run initial data collection (if cache is empty)
+- Start the scheduler daemon for daily updates
+- Show status and useful commands
+
+**Note:** Data collection runs in Docker, but backtests run directly on your host:
+```bash
+python main.py  # Run backtests locally for development
+```
+
+**Manual steps (if preferred):**
+1. Build: `docker-compose build`
+2. Initial fetch: `docker-compose run --rm bulk-fetch`
+3. Start scheduler: `docker-compose up -d scheduler`
 
 ### Manual Installation
 

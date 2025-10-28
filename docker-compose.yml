@@ -20,21 +20,9 @@ services:
     networks:
       - backtester-network
 
-  # Backtest service - run on-demand
-  backtest:
-    build: .
-    container_name: backtester
-    command: python main.py
-    volumes:
-      - ./data/cache:/app/data/cache           # Read cached data
-      - ./config:/app/config                   # Config files (read-only)
-      - ./reports:/app/reports                 # Save reports
-      - ./performance:/app/performance         # Performance logs
-      - ./logs:/app/logs                       # Logs (optional)
-    profiles:
-      - tools  # Don't start automatically
-    networks:
-      - backtester-network
+  # Backtest service - removed (develop separately)
+  # Run backtests directly: python main.py
+  # Uses same cache from data/cache/ directory
 
   # Bulk fetch service - run once for initial data collection
   bulk-fetch:

@@ -7,8 +7,11 @@ with support for full historical fetches and delta fetches.
 
 import ccxt
 import pandas as pd
+import logging
 from typing import Optional, Tuple
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 
 def create_exchange(exchange_name: str, enable_rate_limit: bool = True) -> ccxt.Exchange:
@@ -54,10 +57,50 @@ def fetch_ohlcv_batch(exchange: ccxt.Exchange, symbol: str, timeframe: str,
         raise FetchError(f"Error fetching data: {str(e)}") from e
 
 
+def find_earliest_available_date(exchange: ccxt.Exchange, symbol: str, timeframe: str,
+                                 target_start_date: datetime, end_date: datetime) -> Optional[datetime]:
+    """
+    Find the earliest available date for a market by testing year-by-year.
+    
+    Returns:
+        Earliest available date, or None if no data exists
+    """
+    from datetime import timezone
+    
+    # Ensure timezone-aware
+    if end_date.tzinfo is None:
+        end_date = end_date.replace(tzinfo=timezone.utc)
+    if target_start_date.tzinfo is None:
+        target_start_date = target_start_date.replace(tzinfo=timezone.utc)
+    
+    # Try years from most recent backwards to find first year with data
+    earliest_found = None
+    for year in range(end_date.year, target_start_date.year - 1, -1):
+        test_start = datetime(year, 1, 1, tzinfo=timezone.utc)
+        test_start_ts = exchange.parse8601(test_start.strftime('%Y-%m-%dT00:00:00Z'))
+        
+        try:
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=test_start_ts, limit=1)
+            if ohlcv and len(ohlcv) > 0:
+                earliest_found = pd.to_datetime(ohlcv[0][0], unit='ms', utc=True)
+                # Found data in this year - this is likely the earliest we can easily find
+                # Return it rather than doing expensive binary search
+                logger.debug(f"Found earliest data for {symbol} {timeframe} in {year}: {earliest_found.date()}")
+                return earliest_found
+        except Exception:
+            continue
+    
+    return earliest_found
+
+
 def fetch_historical(exchange: ccxt.Exchange, symbol: str, timeframe: str,
-                    start_date: str, end_date: Optional[str] = None) -> Tuple[pd.DataFrame, int]:
+                    start_date: str, end_date: Optional[str] = None, 
+                    auto_find_earliest: bool = True) -> Tuple[pd.DataFrame, int]:
     """
     Fetch full historical data from start_date to end_date.
+    
+    If start_date has no data and auto_find_earliest is True, will automatically
+    find and use the earliest available date.
     
     Args:
         exchange: CCXT exchange instance
@@ -65,6 +108,7 @@ def fetch_historical(exchange: ccxt.Exchange, symbol: str, timeframe: str,
         timeframe: Data granularity (e.g., '1h', '1d')
         start_date: Start date string (YYYY-MM-DD) or datetime
         end_date: End date string (YYYY-MM-DD) or datetime. If None, uses today
+        auto_find_earliest: If True, automatically find earliest available date if start_date has no data
     
     Returns:
         Tuple of (DataFrame with OHLCV data, number of API requests made)
@@ -95,27 +139,114 @@ def fetch_historical(exchange: ccxt.Exchange, symbol: str, timeframe: str,
     all_ohlcv = []
     api_requests = 0
     max_iterations = 10000  # Safety limit to prevent infinite loops
+    consecutive_empty_batches = 0
+    max_consecutive_empty = 3  # Stop after 3 consecutive empty batches
+    
+    logger.debug(f"Fetching {symbol} {timeframe} from {start_dt} to {end_dt} (API requests: {api_requests})")
     
     while since < end_ts and api_requests < max_iterations:
-        ohlcv, requests = fetch_ohlcv_batch(exchange, symbol, timeframe, since, limit=1000)
-        
-        if not ohlcv:
-            # No more data available
-            break
-        
-        all_ohlcv.extend(ohlcv)
-        api_requests += requests
-        
-        # Update since to next candle after the last one
-        last_timestamp = ohlcv[-1][0]
-        since = last_timestamp + 1
-        
-        # If we got fewer than limit candles, we've reached the end
-        if len(ohlcv) < 1000:
-            break
+        try:
+            ohlcv, requests = fetch_ohlcv_batch(exchange, symbol, timeframe, since, limit=1000)
+            
+            if not ohlcv:
+                # No data in this batch
+                consecutive_empty_batches += 1
+                logger.debug(f"Empty batch {consecutive_empty_batches}/{max_consecutive_empty} for {symbol} {timeframe} at {pd.to_datetime(since, unit='ms', utc=True)}")
+                if consecutive_empty_batches >= max_consecutive_empty:
+                    # Stop if we've hit multiple consecutive empty batches
+                    logger.info(f"Stopping fetch for {symbol} {timeframe}: {max_consecutive_empty} consecutive empty batches")
+                    break
+                # Try moving forward a bit to see if there's a gap
+                # For daily candles, move forward 1 day; for hourly, 1 hour, etc.
+                timeframe_to_hours = {
+                    '1m': 1/60, '5m': 5/60, '15m': 15/60, '30m': 30/60,
+                    '1h': 1, '2h': 2, '6h': 6, '1d': 24
+                }
+                hours_per_candle = timeframe_to_hours.get(timeframe, 24)
+                since += int(hours_per_candle * 3600 * 1000)  # Convert to milliseconds
+                continue
+            
+            # Reset empty batch counter on successful fetch
+            consecutive_empty_batches = 0
+            
+            all_ohlcv.extend(ohlcv)
+            api_requests += requests
+            
+            # Update since to next candle after the last one
+            last_timestamp = ohlcv[-1][0]
+            
+            # Check if we've reached or passed the end date
+            last_dt = pd.to_datetime(last_timestamp, unit='ms', utc=True)
+            # Ensure end_dt is timezone-aware for comparison
+            from datetime import timezone
+            if end_dt.tzinfo is None:
+                end_dt_aware = end_dt.replace(tzinfo=timezone.utc)
+            else:
+                end_dt_aware = end_dt
+            
+            if last_dt >= end_dt_aware:
+                # We've reached or passed the end date - filter out future data
+                break
+            
+            # Move to next batch: start from the next candle
+            since = last_timestamp + 1
+            
+            # Don't break just because we got fewer than 1000 candles
+            # Continue fetching until we reach end_date or hit consecutive empty batches
+                
+        # Note: MarketNotFoundError and FetchError are handled in the outer exception handler below
+        except (MarketNotFoundError, FetchError) as e:
+            # Re-raise these immediately - don't retry
+            raise
+        except ccxt.ExchangeError as e:
+            # Check if it's a "market not found" error
+            error_msg = str(e).lower()
+            if 'not have market' in error_msg or 'not found' in error_msg or 'invalid symbol' in error_msg:
+                raise MarketNotFoundError(f"Market {symbol} not found on {exchange.id}") from e
+            # For other exchange errors, treat as temporary and retry
+            consecutive_empty_batches += 1
+            if consecutive_empty_batches >= max_consecutive_empty:
+                raise FetchError(f"Multiple consecutive exchange errors: {str(e)}") from e
+            # Move forward and retry
+            timeframe_to_hours = {
+                '1m': 1/60, '5m': 5/60, '15m': 15/60, '30m': 30/60,
+                '1h': 1, '2h': 2, '6h': 6, '1d': 24
+            }
+            hours_per_candle = timeframe_to_hours.get(timeframe, 24)
+            since += int(hours_per_candle * 3600 * 1000)
+            continue
+        except Exception as e:
+            # For other errors, log and continue to next batch
+            # This handles temporary API issues
+            consecutive_empty_batches += 1
+            if consecutive_empty_batches >= max_consecutive_empty:
+                raise FetchError(f"Multiple consecutive fetch errors: {str(e)}") from e
+            # Move forward and retry
+            timeframe_to_hours = {
+                '1m': 1/60, '5m': 5/60, '15m': 15/60, '30m': 30/60,
+                '1h': 1, '2h': 2, '6h': 6, '1d': 24
+            }
+            hours_per_candle = timeframe_to_hours.get(timeframe, 24)
+            since += int(hours_per_candle * 3600 * 1000)
+            continue
     
     if not all_ohlcv:
+        # If we got no data and auto_find_earliest is enabled, try to find earliest available date
+        if auto_find_earliest:
+            logger.info(f"No data found for {symbol} {timeframe} from {start_date}. Searching for earliest available date...")
+            earliest_date = find_earliest_available_date(exchange, symbol, timeframe, start_dt, end_dt)
+            if earliest_date:
+                logger.info(f"Found earliest available date: {earliest_date.date()}. Fetching from that date...")
+                # Retry fetch from earliest available date
+                earliest_str = earliest_date.strftime('%Y-%m-%d')
+                return fetch_historical(exchange, symbol, timeframe, earliest_str, end_date, auto_find_earliest=False)
+            else:
+                logger.warning(f"No data available for {symbol} {timeframe} at any date")
+        else:
+            logger.warning(f"No data fetched for {symbol} {timeframe} from {start_date} to {end_date}")
         return pd.DataFrame(), api_requests
+    
+    logger.debug(f"Fetched {len(all_ohlcv)} total candles for {symbol} {timeframe} in {api_requests} API requests")
     
     # Convert to DataFrame
     df = pd.DataFrame(all_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])

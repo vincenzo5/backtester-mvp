@@ -9,8 +9,12 @@ import sys
 import signal
 import logging
 from datetime import datetime
+from pathlib import Path
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
+
+# Add parent directory to path for imports (needed for Docker)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from services.update_runner import run_update
 

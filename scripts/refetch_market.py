@@ -9,6 +9,10 @@ import sys
 import argparse
 import logging
 from datetime import datetime
+from pathlib import Path
+
+# Add parent directory to path for imports (needed for Docker)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.manager import ConfigManager
 from data.fetcher import create_exchange, fetch_historical, MarketNotFoundError, FetchError
