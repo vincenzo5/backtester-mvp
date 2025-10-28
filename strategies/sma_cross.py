@@ -10,12 +10,7 @@ from strategies.base_strategy import BaseStrategy
 
 
 class SMACrossStrategy(BaseStrategy):
-    """
-    SMA Crossover Strategy.
-    
-    Buy when fast SMA crosses above slow SMA.
-    Sell when fast SMA crosses below slow SMA.
-    """
+    """Simple SMA Crossover Strategy."""
     
     params = (
         ('fast_period', 20),
@@ -25,6 +20,8 @@ class SMACrossStrategy(BaseStrategy):
     
     def __init__(self):
         """Initialize indicators."""
+        super().__init__()
+        
         # Calculate SMAs
         self.fast_sma = bt.indicators.SMA(
             self.data.close,
@@ -41,10 +38,14 @@ class SMACrossStrategy(BaseStrategy):
         
         # Track order for notification
         self.order = None
+        self.trade_count = 0
+        self.last_position = 0  # Track position changes
+        self.buy_count = 0  # Debug: count buy signals
+        self.sell_count = 0  # Debug: count sell signals
     
     def next(self):
         """Execute on each bar."""
-        # Skip if we don't have enough data yet
+        # Skip if we don't have enough data
         if len(self.data) < self.params.slow_period:
             return
         
@@ -52,16 +53,25 @@ class SMACrossStrategy(BaseStrategy):
         if self.order:
             return
         
-        # Generate buy signal
+        # Buy signal: fast SMA crosses above slow SMA
         if not self.position:
             if self.crossover > 0:
-                self.log(f'BUY CREATE, Price: {self.data.close[0]:.2f}')
-                self.order = self.buy()
+                # Use 90% of available cash (leave room for commissions)
+                cash = self.broker.getcash()
+                size = int((cash * 0.9) / self.data.close[0])
+                if size > 0:
+                    self.buy_count += 1
+                    self.log(f'ORDER: BUY({size}) @ ${self.data.close[0]:.2f}')
+                    self.order = self.buy(size=size)
+                else:
+                    self.log(f'ORDER: BUY(0) @ ${self.data.close[0]:.2f} - INSUFFICIENT CASH')
         
-        # Generate sell signal
+        # Sell signal: fast SMA crosses below slow SMA
         else:
             if self.crossover < 0:
-                self.log(f'SELL CREATE, Price: {self.data.close[0]:.2f}')
+                self.sell_count += 1
+                position_size = self.position.size
+                self.log(f'ORDER: SELL({position_size}) @ ${self.data.close[0]:.2f}')
                 self.order = self.sell()
     
     def notify_order(self, order):
@@ -70,21 +80,53 @@ class SMACrossStrategy(BaseStrategy):
             return
         
         if order.status in [order.Completed]:
+            slippage_pct = 0.0005  # From config
+            
+            # Order details
+            price = order.executed.price
+            size = order.executed.size
+            commission_dollar = order.executed.comm
+            executed_value = order.executed.value
+            
+            # Count completed trades (round trips)
+            # Count when we enter a position (buy order) or exit a position (sell order)
             if order.isbuy():
-                self.log(f'BUY EXECUTED, Price: {order.executed.price:.2f}, '
-                        f'Cost: {order.executed.value:.2f}, Comm: {order.executed.comm:.2f}')
+                # Buying - entering a position
+                self.trade_count += 1
+                self.last_position = abs(size)
             elif order.issell():
-                self.log(f'SELL EXECUTED, Price: {order.executed.price:.2f}, '
-                        f'Cost: {order.executed.value:.2f}, Comm: {order.executed.comm:.2f}')
+                # Selling - exiting a position
+                self.last_position = 0
+                # Don't increment count - a round trip is counted on entry
+            
+            # Cash and portfolio status
+            cash_after = self.broker.getcash()
+            portfolio_value = self.broker.getvalue()
+            
+            # Calculate slippage cost
+            slippage_dollar = executed_value * slippage_pct
+            
+            # Total cost (for buy) or proceeds (for sell)
+            total_cost = executed_value + commission_dollar + slippage_dollar if order.isbuy() else executed_value - commission_dollar - slippage_dollar
+            
+            if order.isbuy() and self.params.printlog:
+                # BUY format: qty, price, total cost, fee %, cash, portfolio
+                fee_pct = commission_dollar/executed_value*100 if executed_value > 0 else 0
+                self.log(f'EXECUTION: BUY({size}) @ ${price:.2f} | Cost: ${total_cost:.2f} | Fee: {fee_pct:.2f}% | '
+                        f'Cash: ${cash_after:.2f} | Value: ${portfolio_value:.2f}')
+            elif order.issell() and self.params.printlog:
+                # SELL format: qty (abs value), price, net after fees, fee %, cash, portfolio
+                abs_size = abs(size)
+                fee_pct = commission_dollar/executed_value*100 if executed_value > 0 else 0
+                self.log(f'EXECUTION: SELL({abs_size}) @ ${price:.2f} | Net: ${total_cost:.2f} | Fee: {fee_pct:.2f}% | '
+                        f'Cash: ${cash_after:.2f} | Value: ${portfolio_value:.2f}')
         
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+        elif order.status in [order.Canceled, order.Margin, order.Rejected] and self.params.printlog:
             self.log('Order Canceled/Margin/Rejected')
         
-        # Reset order
         self.order = None
     
     def stop(self):
         """Called at the end of backtesting."""
-        self.log(f'Fast SMA: {self.params.fast_period}, Slow SMA: {self.params.slow_period}, '
-                f'Final Value: {self.broker.getvalue():.2f}')
-
+        if self.params.printlog:
+            self.log(f'Strategy Final Value: {self.broker.getvalue():.2f}')
