@@ -5,14 +5,14 @@ exchange:
   name: coinbase  # Options: binance, coinbase, kraken, etc.
   # Optional: filter which symbols/timeframes to test
   # If omitted or set to null, uses ALL from exchange_metadata.yaml
-  symbols: null  # or list like [BTC/USD, ETH/USD] to filter
-  timeframes: null  # or list like [1h, 1d] to filter
+  symbols: [BTC/USD]  # Single symbol for walk-forward test
+  timeframes: [1d]     # 1-day timeframe for walk-forward test
 
 # Backtest Date Range
 backtest:
-  start_date: "2017-01-01"  # Format: YYYY-MM-DD
+  start_date: "2022-01-01"  # Format: YYYY-MM-DD
   end_date: "2025-10-27"
-  initial_capital: 100000.0  # Starting capital in quote currency
+  initial_capital: 100000.0  # Fractional positions supported, so $100k works with any price
   verbose: false  # Minimal output for multi-run tests
   
 # Quick test configuration (overrides above when --quick flag is used)
@@ -57,4 +57,31 @@ parallel:
   # Auto-tuning parameters
   memory_safety_factor: 0.75  # Use max 75% of available RAM
   cpu_reserve_cores: 1        # Reserve N cores for system
+
+# Walk-Forward Optimization Settings
+walkforward:
+  enabled: true  # Toggle walk-forward mode on/off (true for walk-forward, false for single backtest)
+  
+  # Period specification (in-sample/out-of-sample)
+  # Format: "1Y/6M" = 1 year in-sample, 6 months out-of-sample
+  # Supported: Y (years), M (months), W (weeks), D (days)
+  # Can test multiple period combinations
+  periods: ["3M/1M", "6M/3M"]  # Shorter periods for the available ~10 months of data
+  
+  # Fitness functions for selecting best parameters in each window
+  # Options: net_profit, sharpe_ratio, max_dd, profit_factor, np_avg_dd
+  # Must be a list (even for single function)
+  fitness_functions: ["np_avg_dd", "net_profit"]
+  
+  # Parameter ranges for optimization (grid search with step size)
+  # Only used when walkforward.enabled is true
+  parameter_ranges:
+    fast_period:
+      start: 10
+      end: 30
+      step: 10  # Smaller range for quicker testing: [10, 20, 30]
+    slow_period:
+      start: 40
+      end: 60
+      step: 20  # Smaller range for quicker testing: [40, 60]
 

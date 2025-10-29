@@ -223,6 +223,33 @@ class ConfigManager:
         """Get historical start date for data collection."""
         return self.config.get('data', {}).get('historical_start_date', '2017-01-01')
     
+    def is_walkforward_enabled(self) -> bool:
+        """Check if walk-forward optimization is enabled."""
+        return self.config.get('walkforward', {}).get('enabled', False)
+    
+    def get_walkforward_periods(self) -> List[str]:
+        """Get walk-forward period configurations (e.g., ["1Y/6M"])."""
+        return self.config.get('walkforward', {}).get('periods', [])
+    
+    def get_walkforward_fitness_functions(self) -> List[str]:
+        """
+        Get fitness function names for walk-forward optimization.
+        
+        Returns:
+            List of fitness function names (e.g., ["np_avg_dd", "net_profit"])
+        """
+        fitness_funcs = self.config.get('walkforward', {}).get('fitness_functions', ['np_avg_dd'])
+        if not isinstance(fitness_funcs, list):
+            raise ConfigError(
+                f"walkforward.fitness_functions must be a list, got {type(fitness_funcs)}. "
+                f"Update config from 'fitness_function: \"...\"' to 'fitness_functions: [\"...\"]'"
+            )
+        return fitness_funcs
+    
+    def get_parameter_ranges(self) -> Dict[str, Dict[str, int]]:
+        """Get parameter ranges for optimization (grid search)."""
+        return self.config.get('walkforward', {}).get('parameter_ranges', {})
+    
     def _to_dict(self) -> Dict[str, Any]:
         """
         Serialize config for worker processes.

@@ -156,8 +156,49 @@ class ConsoleOutput:
         print(f"Parallel workers: {results.worker_count}")
         print(f"Total execution time: {results.total_execution_time:.2f} seconds")
         print(f"Average time per run: {results.avg_time_per_run:.3f} seconds")
-        print(f"Data load time: {results.data_load_time:.2f} seconds")
-        print(f"Backtest compute time: {results.backtest_compute_time:.2f} seconds")
-        print(f"Report generation time: {results.report_generation_time:.2f} seconds")
+        if hasattr(results, 'data_load_time'):
+            print(f"Data load time: {results.data_load_time:.2f} seconds")
+        if hasattr(results, 'backtest_compute_time'):
+            print(f"Backtest compute time: {results.backtest_compute_time:.2f} seconds")
+        if hasattr(results, 'report_generation_time'):
+            print(f"Report generation time: {results.report_generation_time:.2f} seconds")
+        print("="*100)
+    
+    def print_walkforward_window_progress(self, current: int, total: int, window):
+        """Print progress for walk-forward window optimization."""
+        print(f"\nWindow {current}/{total}: In-sample {window.in_sample_start.date()} to {window.in_sample_end.date()}")
+    
+    def print_walkforward_summary(self, wf_results):
+        """Print walk-forward optimization summary."""
+        from backtest.walkforward.results import WalkForwardResults
+        
+        if not isinstance(wf_results, WalkForwardResults):
+            return
+        
+        print("\n" + "="*100)
+        print("WALK-FORWARD OPTIMIZATION SUMMARY")
+        print("="*100)
+        print(f"Symbol: {wf_results.symbol}")
+        print(f"Timeframe: {wf_results.timeframe}")
+        print(f"Period: {wf_results.period_str}")
+        print(f"Fitness Function: {wf_results.fitness_function}")
+        print(f"Total Windows: {wf_results.total_windows}")
+        print(f"Successful Windows: {wf_results.successful_windows}")
+        print(f"\nAggregate Results:")
+        print(f"  Total OOS Return: {wf_results.total_oos_return_pct:.2f}%")
+        print(f"  Total OOS Net Profit: ${wf_results.total_oos_net_profit:,.2f}")
+        print(f"  Average OOS Return: {wf_results.avg_oos_return_pct:.2f}%")
+        print(f"  Total Execution Time: {wf_results.total_execution_time:.2f} seconds")
+        
+        if wf_results.window_results:
+            print(f"\nPer-Window Results:")
+            print(f"{'Window':<8} {'IS Return':<12} {'OOS Return':<12} {'Best Params'}")
+            print("-"*80)
+            for w in wf_results.window_results:
+                is_return = f"{w.in_sample_metrics.total_return_pct:.2f}%" if w.in_sample_metrics else "N/A"
+                oos_return = f"{w.out_sample_metrics.total_return_pct:.2f}%" if w.out_sample_metrics else "N/A"
+                params_str = ", ".join(f"{k}={v}" for k, v in w.best_parameters.items())
+                print(f"{w.window_index:<8} {is_return:<12} {oos_return:<12} {params_str}")
+        
         print("="*100)
 

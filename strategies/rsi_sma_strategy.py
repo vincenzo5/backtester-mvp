@@ -182,11 +182,16 @@ class RSISMAStrategy(BaseStrategy):
             if rsi < self.params.rsi_oversold:
                 # Use 90% of available cash
                 cash = self.broker.getcash()
-                size = int((cash * 0.9) / current_price)
-                if size > 0:
+                # Calculate fractional position size (crypto supports fractional positions)
+                size = (cash * 0.9) / current_price
+                # Minimum size threshold to avoid dust trades (0.0001 BTC or equivalent)
+                min_size = 0.0001
+                if size >= min_size:
                     self.buy_count += 1
-                    self.log(f'BUY SIGNAL: RSI={rsi:.2f} (oversold), Price=${current_price:.2f}')
+                    self.log(f'BUY SIGNAL: RSI={rsi:.2f} (oversold), Price=${current_price:.2f}, Size={size:.6f}')
                     self.order = self.buy(size=size)
+                else:
+                    self.log(f'BUY SIGNAL: RSI={rsi:.2f} (oversold), Price=${current_price:.2f}, Size={size:.6f} - INSUFFICIENT CASH (below min {min_size})')
         
         # Sell signal: RSI overbought (mean reversion strategy)
         # When RSI is overbought, price has risen too far - expect pullback

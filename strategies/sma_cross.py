@@ -58,13 +58,16 @@ class SMACrossStrategy(BaseStrategy):
             if self.crossover > 0:
                 # Use 90% of available cash (leave room for commissions)
                 cash = self.broker.getcash()
-                size = int((cash * 0.9) / self.data.close[0])
-                if size > 0:
+                # Calculate fractional position size (crypto supports fractional positions)
+                size = (cash * 0.9) / self.data.close[0]
+                # Minimum size threshold to avoid dust trades (0.0001 BTC or equivalent)
+                min_size = 0.0001
+                if size >= min_size:
                     self.buy_count += 1
-                    self.log(f'ORDER: BUY({size}) @ ${self.data.close[0]:.2f}')
+                    self.log(f'ORDER: BUY({size:.6f}) @ ${self.data.close[0]:.2f}')
                     self.order = self.buy(size=size)
                 else:
-                    self.log(f'ORDER: BUY(0) @ ${self.data.close[0]:.2f} - INSUFFICIENT CASH')
+                    self.log(f'ORDER: BUY({size:.6f}) @ ${self.data.close[0]:.2f} - INSUFFICIENT CASH (below min {min_size})')
         
         # Sell signal: fast SMA crosses below slow SMA
         else:
