@@ -181,38 +181,27 @@ class WindowOptimizer:
             try:
                 # Run backtest on in-sample data with optimized parameters
                 from backtest.engine import run_backtest
-                result_dict = run_backtest(
+                result_dict, cerebro, strategy_instance = run_backtest(
                     self.config,
                     self.in_sample_df,
                     self.strategy_class,
                     verbose=False,
-                    strategy_params=params  # Pass optimized parameters
+                    strategy_params=params,  # Pass optimized parameters
+                    return_metrics=True  # Return cerebro and strategy for metrics calculation
                 )
                 
-                # Get metrics from backtest
-                # We need to re-run with analyzers to get detailed metrics
-                # For now, create a simplified metrics object
+                # Calculate comprehensive metrics using calculate_metrics()
                 initial_capital = self.config.get_initial_capital()
-                final_value = result_dict['final_value']
+                start_date = pd.to_datetime(self.in_sample_df.index[0]) if not self.in_sample_df.empty else None
+                end_date = pd.to_datetime(self.in_sample_df.index[-1]) if not self.in_sample_df.empty else None
                 
-                net_profit = final_value - initial_capital
-                total_return_pct = result_dict['total_return_pct']
-                num_trades = result_dict['num_trades']
-                
-                # Create minimal metrics (will be improved when we track equity)
-                metrics = BacktestMetrics(
-                    net_profit=net_profit,
-                    total_return_pct=total_return_pct,
-                    sharpe_ratio=0.0,  # Will calculate from equity curve if available
-                    max_drawdown=0.0,
-                    profit_factor=0.0,
-                    np_avg_dd=net_profit / 1000.0 if net_profit > 0 else 0.0,  # Simple approximation
-                    gross_profit=max(net_profit, 0),
-                    gross_loss=abs(min(net_profit, 0)),
-                    num_trades=num_trades,
-                    num_winning_trades=max(num_trades // 2, 0),
-                    num_losing_trades=max(num_trades // 2, 0),
-                    avg_drawdown=1000.0  # Placeholder
+                metrics = calculate_metrics(
+                    cerebro,
+                    strategy_instance,
+                    initial_capital,
+                    equity_curve=None,  # Will extract from strategy_instance
+                    start_date=start_date,
+                    end_date=end_date
                 )
                 
                 return metrics

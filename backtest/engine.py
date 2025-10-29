@@ -235,7 +235,7 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
     return result_df
 
 
-def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_params=None):
+def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_params=None, return_metrics=False):
     """Run the backtest with backtrader.
     
     This function automatically prepares data (indicators + data sources) before
@@ -247,9 +247,12 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
         df (pandas.DataFrame): OHLCV data (indicators/data sources will be added automatically)
         strategy_class: Strategy class to use
         verbose (bool): If True, print detailed trade logs
+        strategy_params: Optional dict of strategy parameters
+        return_metrics: If True, also return (cerebro, strategy_instance) tuple for metrics calculation
     
     Returns:
         dict: Results dictionary with performance metrics
+        OR tuple: (result_dict, cerebro, strategy_instance) if return_metrics=True
     
     Note:
         Indicators and data sources are pre-computed before the backtest runs.
@@ -292,10 +295,34 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     # Create a cerebro entity
     cerebro = bt.Cerebro()
     
-    # Add a strategy with parameters
+    # Add analyzers for detailed metrics calculation
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trade')
+    cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
+    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
+    
+    # Wrap strategy class to track equity curve (mark-to-market at each bar)
+    class EquityTrackingStrategy(strategy_class):
+        def __init__(self):
+            super().__init__()
+            # Initialize equity curve tracking if not already present
+            if not hasattr(self, 'equity_curve'):
+                self.equity_curve = []
+        
+        def next(self):
+            super().next()
+            # Track portfolio value at end of each bar (mark-to-market)
+            # MultiWalk uses end-of-day (close of last bar before midnight)
+            current_datetime = self.data.datetime.datetime(0)
+            portfolio_value = self.broker.getvalue()
+            self.equity_curve.append({
+                'date': current_datetime,
+                'value': portfolio_value
+            })
+    
+    # Add wrapped strategy with parameters
     # If strategy_params provided, override defaults; otherwise use strategy code defaults
     cerebro.addstrategy(
-        strategy_class,
+        EquityTrackingStrategy,
         printlog=verbose,
         **strategy_params  # Pass params (may be empty dict to use strategy defaults)
     )
@@ -378,7 +405,7 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     if not df.empty and len(df) > 0:
         duration_days = (df.index[-1] - df.index[0]).days
     
-    return {
+    result_dict = {
         'initial_capital': initial_value,
         'final_value': final_value,
         'total_return_pct': total_return,
@@ -388,4 +415,10 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
         'end_date': df.index[-1].strftime('%Y-%m-%d') if not df.empty else None,
         'duration_days': duration_days
     }
+    
+    # Return metrics objects if requested (for walk-forward optimization)
+    if return_metrics:
+        return result_dict, cerebro, strategy_instance
+    
+    return result_dict
 

@@ -204,31 +204,27 @@ class WalkForwardRunner:
                         
                         try:
                             oos_start_time = time.time()
-                            oos_result = run_backtest(
+                            oos_result, oos_cerebro, oos_strategy_instance = run_backtest(
                                 self.config,
                                 out_sample_df,
                                 strategy_class,
-                                verbose=False
+                                verbose=False,
+                                return_metrics=True  # Return cerebro and strategy for metrics calculation
                             )
                             oos_time = time.time() - oos_start_time
                             
-                            # Create OOS metrics
+                            # Calculate comprehensive OOS metrics using calculate_metrics()
                             initial_capital = self.config.get_initial_capital()
-                            final_value = oos_result['final_value']
+                            oos_start_date = pd.to_datetime(out_sample_df.index[0]) if not out_sample_df.empty else None
+                            oos_end_date = pd.to_datetime(out_sample_df.index[-1]) if not out_sample_df.empty else None
                             
-                            oos_metrics = BacktestMetrics(
-                                net_profit=final_value - initial_capital,
-                                total_return_pct=oos_result['total_return_pct'],
-                                sharpe_ratio=0.0,  # Simplified for now
-                                max_drawdown=0.0,
-                                profit_factor=0.0,
-                                np_avg_dd=(final_value - initial_capital) / 1000.0 if final_value > initial_capital else 0.0,
-                                gross_profit=max(final_value - initial_capital, 0),
-                                gross_loss=abs(min(final_value - initial_capital, 0)),
-                                num_trades=oos_result['num_trades'],
-                                num_winning_trades=max(oos_result['num_trades'] // 2, 0),
-                                num_losing_trades=max(oos_result['num_trades'] // 2, 0),
-                                avg_drawdown=1000.0
+                            oos_metrics = calculate_metrics(
+                                oos_cerebro,
+                                oos_strategy_instance,
+                                initial_capital,
+                                equity_curve=None,  # Will extract from strategy_instance
+                                start_date=oos_start_date,
+                                end_date=oos_end_date
                             )
                         finally:
                             # Restore original parameters

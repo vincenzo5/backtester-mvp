@@ -3,6 +3,7 @@ ccxt>=4.0.0
 backtrader>=1.9.78.123
 pandas>=2.0.0
 numpy>=1.24.0
+scipy>=1.11.0  # For R² and statistical calculations
 pyyaml>=6.0
 matplotlib>=3.7.0
 
