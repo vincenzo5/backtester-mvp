@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from data.fetcher import create_exchange, fetch_from_date, MarketNotFoundError, FetchError
 from data.cache_manager import (
     read_cache, write_cache, get_last_cached_timestamp, 
-    update_manifest, cache_exists
+    update_manifest, cache_exists, get_manifest_entry
 )
 from data.validator import remove_duplicates, validate_data
 
@@ -84,7 +84,7 @@ def fetch_delta(exchange_name: str, symbol: str, timeframe: str,
 
 
 def apply_update(symbol: str, timeframe: str, new_data: pd.DataFrame, 
-                validate: bool = True) -> dict:
+                validate: bool = True, source_exchange: Optional[str] = None) -> dict:
     """
     Apply delta update to cache with validation.
     
@@ -93,6 +93,7 @@ def apply_update(symbol: str, timeframe: str, new_data: pd.DataFrame,
         timeframe: Data granularity (e.g., '1h', '1d')
         new_data: DataFrame with new OHLCV data
         validate: Whether to validate data before saving
+        source_exchange: Exchange name from which data was fetched (optional)
     
     Returns:
         Dictionary with update results
@@ -103,6 +104,12 @@ def apply_update(symbol: str, timeframe: str, new_data: pd.DataFrame,
             'candles_added': 0,
             'warnings': []
         }
+    
+    # If source_exchange not provided, try to get from manifest
+    if source_exchange is None:
+        manifest_entry = get_manifest_entry(symbol, timeframe)
+        if manifest_entry and 'source_exchange' in manifest_entry:
+            source_exchange = manifest_entry['source_exchange']
     
     # Validate new data
     validation_result = validate_data(new_data, timeframe) if validate else {'valid': True}
@@ -136,8 +143,8 @@ def apply_update(symbol: str, timeframe: str, new_data: pd.DataFrame,
     if final_validation.get('gaps'):
         warnings.append(f"Detected {len(final_validation['gaps'])} gaps in data")
     
-    # Write to cache
-    write_cache(symbol, timeframe, combined_data)
+    # Write to cache with source_exchange
+    write_cache(symbol, timeframe, combined_data, source_exchange=source_exchange)
     
     candles_added = len(new_data)
     
@@ -156,8 +163,11 @@ def update_market(exchange_name: str, symbol: str, timeframe: str,
     """
     Update a single market/timeframe combination.
     
+    Uses source_exchange from manifest if available, otherwise uses provided exchange_name.
+    If manifest has no source_exchange (legacy), triggers full re-fetch using multi-exchange discovery.
+    
     Args:
-        exchange_name: Name of exchange (e.g., 'coinbase')
+        exchange_name: Name of exchange to use as fallback (e.g., 'coinbase')
         symbol: Trading pair (e.g., 'BTC/USD')
         timeframe: Data granularity (e.g., '1h', '1d')
         target_end_date: Target end date (YYYY-MM-DD). If None, uses yesterday
@@ -167,6 +177,31 @@ def update_market(exchange_name: str, symbol: str, timeframe: str,
         Dictionary with update results
     """
     try:
+        # Get source_exchange from manifest if available
+        manifest_entry = get_manifest_entry(symbol, timeframe)
+        source_exchange = None
+        if manifest_entry and 'source_exchange' in manifest_entry:
+            source_exchange = manifest_entry['source_exchange']
+        
+        # If no source_exchange in manifest and force_refresh, trigger multi-exchange discovery
+        if force_refresh and source_exchange is None:
+            # Import here to avoid circular dependency
+            import yaml
+            with open('config/exchange_metadata.yaml', 'r') as f:
+                metadata = yaml.safe_load(f)
+            exchanges = metadata.get('exchanges', ['coinbase', 'binance', 'kraken'])
+            
+            from data.exchange_discovery import find_best_exchange
+            best_exchange, _ = find_best_exchange(symbol, timeframe, exchanges)
+            if best_exchange:
+                source_exchange = best_exchange
+            else:
+                # Fall back to provided exchange_name
+                source_exchange = exchange_name
+        elif source_exchange is None:
+            # Use provided exchange_name as fallback
+            source_exchange = exchange_name
+        
         # Check if update is needed
         if not force_refresh:
             needs_update_flag, last_timestamp = needs_update(symbol, timeframe, target_end_date)
@@ -182,20 +217,22 @@ def update_market(exchange_name: str, symbol: str, timeframe: str,
         if force_refresh or last_timestamp is None:
             # Full historical fetch needed
             from data.fetcher import fetch_historical
-            exchange = create_exchange(exchange_name)
+            exchange = create_exchange(source_exchange)
             start_date = "2017-01-01"  # Default start
             new_data, api_requests = fetch_historical(
-                exchange, symbol, timeframe, start_date, target_end_date
+                exchange, symbol, timeframe, start_date, target_end_date,
+                source_exchange=source_exchange
             )
         else:
-            # Delta fetch
+            # Delta fetch using source_exchange
             new_data, api_requests = fetch_delta(
-                exchange_name, symbol, timeframe, last_timestamp, target_end_date
+                source_exchange, symbol, timeframe, last_timestamp, target_end_date
             )
         
-        # Apply update
-        update_result = apply_update(symbol, timeframe, new_data, validate=True)
+        # Apply update with source_exchange
+        update_result = apply_update(symbol, timeframe, new_data, validate=True, source_exchange=source_exchange)
         update_result['api_requests'] = api_requests
+        update_result['source_exchange'] = source_exchange
         
         return update_result
         

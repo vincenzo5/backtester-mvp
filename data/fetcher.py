@@ -95,7 +95,7 @@ def find_earliest_available_date(exchange: ccxt.Exchange, symbol: str, timeframe
 
 def fetch_historical(exchange: ccxt.Exchange, symbol: str, timeframe: str,
                     start_date: str, end_date: Optional[str] = None, 
-                    auto_find_earliest: bool = True) -> Tuple[pd.DataFrame, int]:
+                    auto_find_earliest: bool = True, source_exchange: Optional[str] = None) -> Tuple[pd.DataFrame, int]:
     """
     Fetch full historical data from start_date to end_date.
     
@@ -109,6 +109,7 @@ def fetch_historical(exchange: ccxt.Exchange, symbol: str, timeframe: str,
         start_date: Start date string (YYYY-MM-DD) or datetime
         end_date: End date string (YYYY-MM-DD) or datetime. If None, uses today
         auto_find_earliest: If True, automatically find earliest available date if start_date has no data
+        source_exchange: Exchange name for logging purposes (optional)
     
     Returns:
         Tuple of (DataFrame with OHLCV data, number of API requests made)
@@ -142,7 +143,8 @@ def fetch_historical(exchange: ccxt.Exchange, symbol: str, timeframe: str,
     consecutive_empty_batches = 0
     max_consecutive_empty = 3  # Stop after 3 consecutive empty batches
     
-    logger.debug(f"Fetching {symbol} {timeframe} from {start_dt} to {end_dt} (API requests: {api_requests})")
+    exchange_info = f" from {source_exchange}" if source_exchange else ""
+    logger.debug(f"Fetching {symbol} {timeframe}{exchange_info} from {start_dt} to {end_dt} (API requests: {api_requests})")
     
     while since < end_ts and api_requests < max_iterations:
         try:

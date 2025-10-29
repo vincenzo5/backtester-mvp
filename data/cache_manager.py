@@ -71,7 +71,7 @@ def read_cache(symbol: str, timeframe: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def write_cache(symbol: str, timeframe: str, df: pd.DataFrame):
+def write_cache(symbol: str, timeframe: str, df: pd.DataFrame, source_exchange: Optional[str] = None):
     """
     Write data to cache file.
     
@@ -82,6 +82,7 @@ def write_cache(symbol: str, timeframe: str, df: pd.DataFrame):
         symbol: Trading pair (e.g., 'BTC/USD')
         timeframe: Data granularity (e.g., '1h', '1d')
         df: DataFrame with OHLCV data (must have datetime index and OHLCV columns)
+        source_exchange: Exchange name from which data was fetched (optional, stored in manifest only)
     
     Raises:
         ValueError: If DataFrame doesn't have DatetimeIndex
@@ -104,10 +105,10 @@ def write_cache(symbol: str, timeframe: str, df: pd.DataFrame):
     df_with_named_index.to_csv(cache_file)
     
     # Update manifest
-    update_manifest(symbol, timeframe, df)
+    update_manifest(symbol, timeframe, df, source_exchange=source_exchange)
 
 
-def update_manifest(symbol: str, timeframe: str, df: pd.DataFrame):
+def update_manifest(symbol: str, timeframe: str, df: pd.DataFrame, source_exchange: Optional[str] = None):
     """
     Update cache manifest with metadata for a symbol/timeframe.
     
@@ -115,6 +116,7 @@ def update_manifest(symbol: str, timeframe: str, df: pd.DataFrame):
         symbol: Trading pair (e.g., 'BTC/USD')
         timeframe: Data granularity (e.g., '1h', '1d')
         df: DataFrame with OHLCV data
+        source_exchange: Exchange name from which data was fetched (optional)
     """
     ensure_cache_dir()
     
@@ -143,6 +145,10 @@ def update_manifest(symbol: str, timeframe: str, df: pd.DataFrame):
         'candle_count': candle_count,
         'last_updated': last_updated
     }
+    
+    # Add source_exchange if provided
+    if source_exchange:
+        manifest[key]['source_exchange'] = source_exchange
     
     # Save manifest
     save_manifest(manifest)

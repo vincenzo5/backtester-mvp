@@ -1,5 +1,14 @@
 last_updated: '2025-10-28T20:50:00.000000'
+# Exchange to use for actual trading/execution
 exchange: coinbase
+# List of exchanges to search for historical data (in priority order)
+# The system will test each exchange and select the one with the most historical data
+exchanges:
+- coinbase
+- binance
+- kraken
+- bybit
+- okx
 timeframes:
 - 1m
 - 5m

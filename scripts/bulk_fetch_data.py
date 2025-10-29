@@ -1,18 +1,33 @@
 """
 Bulk data collection script for fetching historical OHLCV data from exchanges.
 
-This script reads markets and timeframes from exchange_metadata.yaml and downloads
-historical data for all combinations, with comprehensive error handling and performance tracking.
+This script reads markets and timeframes from exchange_metadata.yaml, discovers
+the best exchange for each market/timeframe combination, and downloads historical
+data with comprehensive error handling and performance tracking.
 """
 
-import ccxt
-import pandas as pd
 import os
+import sys
 import time
 import yaml
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+
+# Add parent directory to path to import modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from data.exchange_discovery import find_best_exchange
+from data.fetcher import create_exchange, fetch_historical, MarketNotFoundError, FetchError
+from data.cache_manager import delete_cache, write_cache, get_cache_path
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 def load_metadata():
@@ -28,60 +43,6 @@ def setup_directories():
         os.makedirs(directory, exist_ok=True)
 
 
-def fetch_market_data(exchange, symbol, timeframe, start_date, end_date):
-    """
-    Fetch OHLCV data for a specific market and timeframe.
-    
-    Returns:
-        tuple: (df, api_requests, source)
-            - df: pandas DataFrame with OHLCV data
-            - api_requests: number of API requests made
-            - source: "cache" or "api"
-    """
-    # Generate cache filename
-    cache_filename = f"{symbol.replace('/', '_')}_{timeframe}_{start_date}_{end_date}.csv"
-    cache_file = f"data/cache/{cache_filename}"
-    
-    # Check if cached data exists
-    if os.path.exists(cache_file):
-        df = pd.read_csv(cache_file, index_col='datetime', parse_dates=True)
-        return df, 0, "cache"
-    
-    # Fetch from API
-    start_ts = exchange.parse8601(start_date + 'T00:00:00Z')
-    end_ts = exchange.parse8601(end_date + 'T00:00:00Z')
-    
-    since = start_ts
-    all_ohlcv = []
-    api_requests = 0
-    
-    while since < end_ts:
-        try:
-            ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since, limit=1000)
-            if not ohlcv:
-                break
-            all_ohlcv.extend(ohlcv)
-            since = ohlcv[-1][0] + 1  # Start from next candle
-            api_requests += 1
-        except Exception as e:
-            print(f"  Error fetching chunk: {e}")
-            break
-    
-    if not all_ohlcv:
-        return None, api_requests, "api"
-    
-    # Convert to DataFrame
-    df = pd.DataFrame(all_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
-    df.set_index('datetime', inplace=True)
-    df.drop('timestamp', axis=1, inplace=True)
-    
-    # Save to cache
-    df.to_csv(cache_file)
-    
-    return df, api_requests, "api"
-
-
 def log_performance(performance_file, data):
     """Log performance metrics to JSON Lines file."""
     with open(performance_file, 'a') as f:
@@ -91,7 +52,7 @@ def log_performance(performance_file, data):
 def main():
     """Main execution function."""
     print("=" * 80)
-    print("Bulk Data Collection Script")
+    print("Multi-Exchange Bulk Data Collection Script")
     print("=" * 80)
     print()
     
@@ -100,7 +61,8 @@ def main():
     
     # Load metadata
     metadata = load_metadata()
-    exchange_name = metadata['exchange']
+    execution_exchange = metadata.get('exchange', 'coinbase')
+    exchanges = metadata.get('exchanges', ['coinbase', 'binance', 'kraken'])
     markets = metadata['top_markets']
     timeframes = metadata['timeframes']
     
@@ -108,15 +70,13 @@ def main():
     start_date = "2017-01-01"
     end_date = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d')
     
-    print(f"Exchange: {exchange_name}")
+    print(f"Execution exchange: {execution_exchange}")
+    print(f"Data collection exchanges: {exchanges}")
     print(f"Markets: {len(markets)}")
     print(f"Timeframes: {len(timeframes)}")
     print(f"Date range: {start_date} to {end_date}")
     print(f"Total combinations: {len(markets) * len(timeframes)}")
     print()
-    
-    # Initialize exchange with rate limiting
-    exchange = getattr(ccxt, exchange_name)({'enableRateLimit': True})
     
     # Performance tracking
     performance_file = 'performance/fetch_performance.jsonl'
@@ -134,8 +94,8 @@ def main():
     successful = 0
     failed = 0
     total_api_requests = 0
-    cache_hits = 0
     total_candles = 0
+    exchange_usage = {}  # Track exchange usage
     start_time = time.time()
     
     # Progress tracking
@@ -151,21 +111,75 @@ def main():
             current += 1
             fetch_start_time = time.time()
             
-            print(f"[{current}/{total_combinations}] Fetching {market} {timeframe}...", end=' ')
+            print(f"[{current}/{total_combinations}] {market} {timeframe}...", end=' ', flush=True)
             
             try:
-                df, api_requests, source = fetch_market_data(
-                    exchange, market, timeframe, start_date, end_date
+                # Step 1: Find best exchange for this market/timeframe
+                best_exchange, earliest_date = find_best_exchange(market, timeframe, exchanges)
+                
+                if best_exchange is None:
+                    duration = time.time() - fetch_start_time
+                    perf_data = {
+                        'timestamp': datetime.utcnow().isoformat() + 'Z',
+                        'market': market,
+                        'timeframe': timeframe,
+                        'candles': 0,
+                        'duration': round(duration, 2),
+                        'status': 'no_exchange',
+                        'source_exchange': None,
+                        'api_requests': 0
+                    }
+                    log_performance(performance_file, perf_data)
+                    print(f"⚠ No exchange found with data")
+                    failed += 1
+                    continue
+                
+                # Step 2: Delete existing cache (clean replacement)
+                cache_path = get_cache_path(market, timeframe)
+                if cache_path.exists():
+                    delete_cache(market, timeframe)
+                
+                # Step 3: Fetch data from best exchange
+                exchange = create_exchange(best_exchange, enable_rate_limit=True)
+                
+                # Use earliest date found as start date, or default to 2017-01-01
+                fetch_start = earliest_date.strftime('%Y-%m-%d') if earliest_date else start_date
+                
+                df, api_requests = fetch_historical(
+                    exchange, market, timeframe,
+                    fetch_start, end_date,
+                    auto_find_earliest=True,
+                    source_exchange=best_exchange
                 )
                 
-                if df is not None:
+                if df.empty:
+                    duration = time.time() - fetch_start_time
+                    perf_data = {
+                        'timestamp': datetime.utcnow().isoformat() + 'Z',
+                        'market': market,
+                        'timeframe': timeframe,
+                        'candles': 0,
+                        'duration': round(duration, 2),
+                        'status': 'no_data',
+                        'source_exchange': best_exchange,
+                        'api_requests': api_requests
+                    }
+                    log_performance(performance_file, perf_data)
+                    print(f"⚠ No data fetched from {best_exchange}")
+                    failed += 1
+                else:
+                    # Step 4: Save to cache with source_exchange in manifest
+                    write_cache(market, timeframe, df, source_exchange=best_exchange)
+                    
                     duration = time.time() - fetch_start_time
                     candles = len(df)
                     total_candles += candles
                     total_api_requests += api_requests
                     
-                    if source == "cache":
-                        cache_hits += 1
+                    # Track exchange usage
+                    if best_exchange not in exchange_usage:
+                        exchange_usage[best_exchange] = 0
+                    exchange_usage[best_exchange] += 1
                     
                     # Log performance
                     perf_data = {
@@ -175,7 +189,8 @@ def main():
                         'candles': candles,
                         'duration': round(duration, 2),
                         'status': 'success',
-                        'source': source,
+                        'source_exchange': best_exchange,
+                        'earliest_date': fetch_start,
                         'api_requests': api_requests
                     }
                     log_performance(performance_file, perf_data)
@@ -183,30 +198,14 @@ def main():
                     # Calculate candles per second
                     candles_per_sec = candles / duration if duration > 0 else 0
                     
-                    print(f"✓ {candles:,} candles in {duration:.1f}s ({candles_per_sec:.0f} candles/s) [{source}]")
+                    print(f"✓ {candles:,} candles from {best_exchange} ({earliest_date.date() if earliest_date else 'N/A'}) in {duration:.1f}s ({candles_per_sec:.0f} candles/s)")
                     successful += 1
-                else:
-                    # Data fetch returned None (likely no data available)
-                    duration = time.time() - fetch_start_time
-                    perf_data = {
-                        'timestamp': datetime.utcnow().isoformat() + 'Z',
-                        'market': market,
-                        'timeframe': timeframe,
-                        'candles': 0,
-                        'duration': round(duration, 2),
-                        'status': 'no_data',
-                        'source': 'api',
-                        'api_requests': api_requests
-                    }
-                    log_performance(performance_file, perf_data)
-                    print(f"⚠ No data available")
-                    failed += 1
                     
-            except ccxt.ExchangeError as e:
+            except (MarketNotFoundError, FetchError) as e:
                 duration = time.time() - fetch_start_time
                 failed += 1
-                error_msg = f"Exchange error for {market} {timeframe}: {str(e)}"
-                print(f"✗ Exchange error")
+                error_msg = f"Fetch error for {market} {timeframe}: {str(e)}"
+                print(f"✗ {str(e)[:50]}")
                 
                 # Log to error file
                 with open(error_file, 'a') as f:
@@ -220,31 +219,7 @@ def main():
                     'candles': 0,
                     'duration': round(duration, 2),
                     'status': 'error',
-                    'source': 'api',
-                    'api_requests': 0,
-                    'error': str(e)
-                }
-                log_performance(performance_file, perf_data)
-                
-            except ccxt.NetworkError as e:
-                duration = time.time() - fetch_start_time
-                failed += 1
-                error_msg = f"Network error for {market} {timeframe}: {str(e)}"
-                print(f"✗ Network error")
-                
-                # Log to error file
-                with open(error_file, 'a') as f:
-                    f.write(f"[{datetime.now().isoformat()}] {error_msg}\n")
-                
-                # Log to performance file
-                perf_data = {
-                    'timestamp': datetime.utcnow().isoformat() + 'Z',
-                    'market': market,
-                    'timeframe': timeframe,
-                    'candles': 0,
-                    'duration': round(duration, 2),
-                    'status': 'error',
-                    'source': 'api',
+                    'source_exchange': None,
                     'api_requests': 0,
                     'error': str(e)
                 }
@@ -268,7 +243,7 @@ def main():
                     'candles': 0,
                     'duration': round(duration, 2),
                     'status': 'error',
-                    'source': 'api',
+                    'source_exchange': None,
                     'api_requests': 0,
                     'error': str(e)
                 }
@@ -276,7 +251,6 @@ def main():
     
     # Calculate summary statistics
     total_duration = time.time() - start_time
-    cache_hit_rate = (cache_hits / successful * 100) if successful > 0 else 0
     avg_candles_per_sec = total_candles / total_duration if total_duration > 0 else 0
     
     # Print summary
@@ -288,11 +262,14 @@ def main():
     print(f"Successful fetches: {successful}")
     print(f"Failed fetches: {failed}")
     print(f"Success rate: {(successful / total_combinations * 100):.1f}%")
-    print(f"Cache hit rate: {cache_hit_rate:.1f}%")
     print(f"Total candles fetched: {total_candles:,}")
     print(f"Average fetch time: {total_duration / total_combinations:.1f}s per market")
     print(f"Total API requests: {total_api_requests:,}")
     print(f"Average candles per second: {avg_candles_per_sec:.0f}")
+    print()
+    print("Exchange usage:")
+    for exchange, count in sorted(exchange_usage.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {exchange}: {count} market/timeframe combinations")
     print()
     print(f"✓ Performance data logged to: {performance_file}")
     if failed > 0:
@@ -302,4 +279,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
