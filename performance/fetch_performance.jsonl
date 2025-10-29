@@ -1,4 +1,0 @@
-{"timestamp": "2025-10-28T21:29:55.249661Z", "market": "BTC/USD", "timeframe": "1h", "candles": 300, "duration": 1.39, "status": "success", "source": "api", "api_requests": 1}
-{"timestamp": "2025-10-28T21:29:55.427350Z", "market": "BTC/USD", "timeframe": "1d", "candles": 300, "duration": 0.18, "status": "success", "source": "api", "api_requests": 1}
-{"timestamp": "2025-10-28T21:29:55.577007Z", "market": "ETH/USD", "timeframe": "1h", "candles": 300, "duration": 0.15, "status": "success", "source": "api", "api_requests": 1}
-{"timestamp": "2025-10-28T21:29:55.766121Z", "market": "ETH/USD", "timeframe": "1d", "candles": 300, "duration": 0.19, "status": "success", "source": "api", "api_requests": 1}
