@@ -45,6 +45,10 @@ performance/*.jsonl
 performance/*.json
 !performance/.gitkeep
 
+# Logs (runtime-generated)
+logs/*.log
+logs/*.log.*
+
 # Environment
 .env
 .env.local
