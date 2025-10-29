@@ -83,9 +83,8 @@ class SMACrossStrategy(BaseStrategy):
             return
         
         if order.status in [order.Completed]:
-            slippage_pct = 0.0005  # From config
-            
             # Order details
+            # Note: executed.price already includes slippage (applied by Backtrader broker)
             price = order.executed.price
             size = order.executed.size
             commission_dollar = order.executed.comm
@@ -106,11 +105,9 @@ class SMACrossStrategy(BaseStrategy):
             cash_after = self.broker.getcash()
             portfolio_value = self.broker.getvalue()
             
-            # Calculate slippage cost
-            slippage_dollar = executed_value * slippage_pct
-            
             # Total cost (for buy) or proceeds (for sell)
-            total_cost = executed_value + commission_dollar + slippage_dollar if order.isbuy() else executed_value - commission_dollar - slippage_dollar
+            # Note: executed_value already includes slippage in the price, commission is separate
+            total_cost = executed_value + commission_dollar if order.isbuy() else executed_value - commission_dollar
             
             if order.isbuy() and self.params.printlog:
                 # BUY format: qty, price, total cost, fee %, cash, portfolio

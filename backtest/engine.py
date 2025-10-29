@@ -323,8 +323,21 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     commission = config_manager.get_commission()
     cerebro.broker.setcommission(commission=commission)
     
-    # Get slippage from config
+    # Set slippage from config
     slippage = config_manager.get_slippage()
+    if slippage > 0:
+        # Apply percentage-based slippage
+        # slip_open: apply to market orders executed at open
+        # slip_limit: apply to limit orders (we use market orders but include for completeness)
+        # slip_match: cap slippage at high/low prices (safety)
+        # slip_out: don't allow slippage to exceed high/low range
+        cerebro.broker.set_slippage_perc(
+            perc=slippage,
+            slip_open=True,
+            slip_limit=False,
+            slip_match=True,
+            slip_out=False
+        )
     
     if verbose:
         # Log trading parameters
