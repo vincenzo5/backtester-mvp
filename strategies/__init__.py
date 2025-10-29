@@ -6,11 +6,13 @@ loaded based on configuration.
 """
 
 from strategies.sma_cross import SMACrossStrategy
+from strategies.rsi_sma_strategy import RSISMAStrategy
 
 
 # Strategy registry mapping names to classes
 STRATEGY_REGISTRY = {
     'sma_cross': SMACrossStrategy,
+    'rsi_sma': RSISMAStrategy,
 }
 
 
@@ -37,4 +39,4 @@ def get_strategy_class(strategy_name):
     return STRATEGY_REGISTRY[strategy_name]
 
 
-__all__ = ['get_strategy_class', 'SMACrossStrategy']
+__all__ = ['get_strategy_class', 'SMACrossStrategy', 'RSISMAStrategy']

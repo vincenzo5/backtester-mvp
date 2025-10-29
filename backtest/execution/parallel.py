@@ -53,6 +53,15 @@ def _run_backtest_worker(work_item: Dict[str, Any]) -> Dict[str, Any]:
             end_date = config.get_end_date()
             start_dt = pd.to_datetime(start_date)
             end_dt = pd.to_datetime(end_date)
+            
+            # Handle timezone-aware DataFrames (cached data has UTC timezone)
+            if df.index.tz is not None:
+                from datetime import timezone
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=timezone.utc)
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=timezone.utc)
+            
             df = df[(df.index >= start_dt) & (df.index <= end_dt)]
         
         if df.empty:
