@@ -159,6 +159,271 @@ def validate_coverage(df: pd.DataFrame, timeframe: str,
     }
 
 
+def validate_ohlcv_integrity(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Validate OHLCV price relationships and ensure all prices are positive.
+    
+    Args:
+        df: DataFrame with datetime index and OHLCV columns (open, high, low, close, volume)
+    
+    Returns:
+        Dictionary with valid_count, invalid_count, and issues list
+    """
+    if df.empty:
+        return {
+            'valid_count': 0,
+            'invalid_count': 0,
+            'issues': []
+        }
+    
+    required_cols = ['open', 'high', 'low', 'close', 'volume']
+    if not all(col in df.columns for col in required_cols):
+        return {
+            'valid_count': 0,
+            'invalid_count': len(df),
+            'issues': ['Missing required OHLCV columns']
+        }
+    
+    issues = []
+    invalid_mask = pd.Series(False, index=df.index)
+    
+    # Check all prices > 0
+    price_cols = ['open', 'high', 'low', 'close']
+    for col in price_cols:
+        invalid = df[col] <= 0
+        invalid_mask |= invalid
+        if invalid.any():
+            issues.append(f"{col}: {invalid.sum()} candles with non-positive values")
+    
+    # Check volume >= 0
+    invalid_volume = df['volume'] < 0
+    invalid_mask |= invalid_volume
+    if invalid_volume.any():
+        issues.append(f"volume: {invalid_volume.sum()} candles with negative volume")
+    
+    # Check High >= Low (fundamental requirement)
+    invalid_high_low = df['high'] < df['low']
+    invalid_mask |= invalid_high_low
+    if invalid_high_low.any():
+        issues.append(f"high_low: {invalid_high_low.sum()} candles with high < low")
+    
+    # Check High >= Open and High >= Close
+    invalid_high_open = df['high'] < df['open']
+    invalid_mask |= invalid_high_open
+    if invalid_high_open.any():
+        issues.append(f"high_open: {invalid_high_open.sum()} candles with high < open")
+    
+    invalid_high_close = df['high'] < df['close']
+    invalid_mask |= invalid_high_close
+    if invalid_high_close.any():
+        issues.append(f"high_close: {invalid_high_close.sum()} candles with high < close")
+    
+    # Check Low <= Open and Low <= Close
+    invalid_low_open = df['low'] > df['open']
+    invalid_mask |= invalid_low_open
+    if invalid_low_open.any():
+        issues.append(f"low_open: {invalid_low_open.sum()} candles with low > open")
+    
+    invalid_low_close = df['low'] > df['close']
+    invalid_mask |= invalid_low_close
+    if invalid_low_close.any():
+        issues.append(f"low_close: {invalid_low_close.sum()} candles with low > close")
+    
+    valid_count = (~invalid_mask).sum()
+    invalid_count = invalid_mask.sum()
+    
+    return {
+        'valid_count': int(valid_count),
+        'invalid_count': int(invalid_count),
+        'issues': issues
+    }
+
+
+def detect_outliers(df: pd.DataFrame, method: str = 'iqr', multiplier: float = 1.5,
+                   columns: list = None) -> List[Any]:
+    """
+    Detect outliers in OHLCV data using statistical methods.
+    
+    Args:
+        df: DataFrame with datetime index
+        method: Method to use ('iqr' for Interquartile Range)
+        multiplier: Multiplier for IQR method (default 1.5)
+        columns: Columns to check for outliers (default: ['open', 'high', 'low', 'close', 'volume'])
+    
+    Returns:
+        List of outlier indices (row positions)
+    """
+    if df.empty or len(df) < 4:  # Need at least 4 points for IQR
+        return []
+    
+    if columns is None:
+        columns = ['open', 'high', 'low', 'close', 'volume']
+    
+    # Filter to columns that exist
+    columns = [col for col in columns if col in df.columns]
+    if not columns:
+        return []
+    
+    outlier_indices = set()
+    
+    if method == 'iqr':
+        for col in columns:
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            
+            if IQR == 0:
+                continue  # Skip if no variance
+            
+            lower_bound = Q1 - multiplier * IQR
+            upper_bound = Q3 + multiplier * IQR
+            
+            outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)]
+            outlier_indices.update(outliers.index.tolist())
+    
+    return sorted(outlier_indices)
+
+
+def validate_volume(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Validate volume data: non-negative, detect zero volume, detect extreme outliers.
+    
+    Args:
+        df: DataFrame with datetime index and 'volume' column
+    
+    Returns:
+        Dictionary with zero_volume_count, outlier_count, outlier_indices
+    """
+    if df.empty or 'volume' not in df.columns:
+        return {
+            'zero_volume_count': 0,
+            'outlier_count': 0,
+            'outlier_indices': []
+        }
+    
+    # Check for negative volume
+    negative_volume = (df['volume'] < 0).sum()
+    
+    # Count zero volume
+    zero_volume_count = int((df['volume'] == 0).sum())
+    
+    # Detect volume outliers using IQR
+    outlier_indices = detect_outliers(df, method='iqr', multiplier=1.5, columns=['volume'])
+    outlier_count = len(outlier_indices)
+    
+    return {
+        'zero_volume_count': zero_volume_count,
+        'negative_volume_count': int(negative_volume),
+        'outlier_count': outlier_count,
+        'outlier_indices': outlier_indices
+    }
+
+
+def validate_cross_candle_consistency(df: pd.DataFrame, tolerance: float = 0.01) -> Dict[str, Any]:
+    """
+    Validate cross-candle consistency: next candle's open should be close to previous candle's close.
+    
+    Args:
+        df: DataFrame with datetime index and OHLCV columns
+        tolerance: Maximum allowed price difference as fraction (0.01 = 1%)
+    
+    Returns:
+        Dictionary with consistent_count, inconsistent_count, gap_count
+    """
+    if df.empty or len(df) < 2:
+        return {
+            'consistent_count': 0,
+            'inconsistent_count': 0,
+            'gap_count': 0
+        }
+    
+    if 'open' not in df.columns or 'close' not in df.columns:
+        return {
+            'consistent_count': 0,
+            'inconsistent_count': 0,
+            'gap_count': 0
+        }
+    
+    # Sort by index to ensure chronological order
+    df_sorted = df.sort_index()
+    
+    consistent_count = 0
+    inconsistent_count = 0
+    
+    # Compare each candle's open to previous candle's close
+    for i in range(1, len(df_sorted)):
+        prev_close = df_sorted.iloc[i - 1]['close']
+        curr_open = df_sorted.iloc[i]['open']
+        
+        # Skip if either value is invalid
+        if pd.isna(prev_close) or pd.isna(curr_open) or prev_close <= 0:
+            continue
+        
+        # Calculate percentage difference
+        price_diff_pct = abs(curr_open - prev_close) / prev_close
+        
+        if price_diff_pct <= tolerance:
+            consistent_count += 1
+        else:
+            inconsistent_count += 1
+    
+    total_transitions = len(df_sorted) - 1
+    gap_count = inconsistent_count
+    
+    return {
+        'consistent_count': consistent_count,
+        'inconsistent_count': inconsistent_count,
+        'total_transitions': total_transitions,
+        'gap_count': gap_count
+    }
+
+
+def validate_missing_values(df: pd.DataFrame) -> Dict[str, int]:
+    """
+    Detect missing values (NaN) in OHLCV columns.
+    
+    Args:
+        df: DataFrame with datetime index
+    
+    Returns:
+        Dictionary with missing value counts by column
+    """
+    if df.empty:
+        return {}
+    
+    missing_counts = {}
+    for col in df.columns:
+        missing_count = int(df[col].isna().sum())
+        if missing_count > 0:
+            missing_counts[col] = missing_count
+    
+    return missing_counts
+
+
+def validate_chronological_order(df: pd.DataFrame) -> bool:
+    """
+    Validate that DataFrame index is strictly increasing (chronological order).
+    
+    Args:
+        df: DataFrame with datetime index
+    
+    Returns:
+        True if index is strictly increasing, False otherwise
+    """
+    if df.empty or len(df) < 2:
+        return True
+    
+    df_sorted = df.sort_index()
+    
+    # Check if sorted index equals original index (means already in order)
+    if df.index.equals(df_sorted.index):
+        # Verify strictly increasing
+        diffs = df.index[1:] - df.index[:-1]
+        return (diffs > pd.Timedelta(0)).all()
+    
+    return False
+
+
 def validate_data(df: pd.DataFrame, timeframe: str) -> Dict[str, Any]:
     """
     Comprehensive data validation.

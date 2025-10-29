@@ -108,7 +108,9 @@ def write_cache(symbol: str, timeframe: str, df: pd.DataFrame, source_exchange: 
     update_manifest(symbol, timeframe, df, source_exchange=source_exchange)
 
 
-def update_manifest(symbol: str, timeframe: str, df: pd.DataFrame, source_exchange: Optional[str] = None):
+def update_manifest(symbol: str, timeframe: str, df: pd.DataFrame, source_exchange: Optional[str] = None,
+                   quality_grade: Optional[str] = None, quality_assessment_date: Optional[str] = None,
+                   market_live: Optional[bool] = None, market_verified_date: Optional[str] = None):
     """
     Update cache manifest with metadata for a symbol/timeframe.
     
@@ -117,6 +119,10 @@ def update_manifest(symbol: str, timeframe: str, df: pd.DataFrame, source_exchan
         timeframe: Data granularity (e.g., '1h', '1d')
         df: DataFrame with OHLCV data
         source_exchange: Exchange name from which data was fetched (optional)
+        quality_grade: Quality grade (A-F or 'Not Assessed') (optional)
+        quality_assessment_date: ISO format date when quality was assessed (optional)
+        market_live: Whether market is currently live on exchanges (optional)
+        market_verified_date: ISO format date when liveliness was verified (optional)
     """
     ensure_cache_dir()
     
@@ -149,6 +155,18 @@ def update_manifest(symbol: str, timeframe: str, df: pd.DataFrame, source_exchan
     # Add source_exchange if provided
     if source_exchange:
         manifest[key]['source_exchange'] = source_exchange
+    
+    # Add quality metadata if provided (lean storage)
+    if quality_grade is not None:
+        manifest[key]['quality_grade'] = quality_grade
+    if quality_assessment_date is not None:
+        manifest[key]['quality_assessment_date'] = quality_assessment_date
+    
+    # Add market liveliness metadata if provided
+    if market_live is not None:
+        manifest[key]['market_live'] = market_live
+    if market_verified_date is not None:
+        manifest[key]['market_verified_date'] = market_verified_date
     
     # Save manifest
     save_manifest(manifest)

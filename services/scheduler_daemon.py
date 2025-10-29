@@ -17,6 +17,9 @@ from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from services.update_runner import run_update
+from services.quality_runner import run_incremental_assessment, run_full_assessment
+from services.gap_filling_runner import run_gap_filling
+import yaml
 
 
 # Setup logging
@@ -68,11 +71,56 @@ class SchedulerDaemon:
             
             if result.get('status') == 'success':
                 logger.info("Daily update completed successfully")
+                
+                # Run incremental quality assessment after update (if enabled)
+                try:
+                    config_path = Path('config/config.yaml')
+                    if config_path.exists():
+                        with open(config_path, 'r') as f:
+                            config = yaml.safe_load(f)
+                        
+                        if config.get('data_quality', {}).get('incremental_assessment', True):
+                            logger.info("Running incremental quality assessment...")
+                            assessment_result = run_incremental_assessment()
+                            logger.info(f"Incremental assessment: {assessment_result.get('assessed', 0)} datasets assessed")
+                except Exception as e:
+                    logger.warning(f"Error running incremental quality assessment: {str(e)}")
             else:
                 logger.error(f"Daily update failed: {result.get('error', 'Unknown error')}")
         
         except Exception as e:
             logger.error(f"Unexpected error in update job: {e}", exc_info=True)
+    
+    def _run_full_quality_assessment(self):
+        """Wrapper for full quality assessment job."""
+        try:
+            logger.info("Starting full quality assessment...")
+            result = run_full_assessment()
+            
+            if result.get('status') == 'success':
+                logger.info(f"Full quality assessment completed: {result.get('assessed', 0)} datasets assessed")
+            else:
+                logger.error(f"Full quality assessment failed: {result.get('error', 'Unknown error')}")
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in quality assessment job: {e}", exc_info=True)
+    
+    def _run_gap_filling(self):
+        """Wrapper for gap filling job."""
+        try:
+            logger.info("Starting gap filling...")
+            result = run_gap_filling()
+            
+            if result.get('status') == 'success':
+                logger.info(f"Gap filling completed: {result.get('gaps_filled', 0)} gaps filled, "
+                          f"{result.get('total_candles_added', 0)} candles added")
+            elif result.get('status') == 'no_gaps':
+                logger.info("No gaps found - all datasets complete")
+            else:
+                logger.error(f"Gap filling failed: {result.get('error', 'Unknown error')}")
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in gap filling job: {e}", exc_info=True)
     
     def start(self):
         """Start the scheduler daemon."""
@@ -96,6 +144,63 @@ class SchedulerDaemon:
             name='Daily Data Update',
             replace_existing=True
         )
+        
+        # Load config to check schedules
+        try:
+            config_path = Path('config/config.yaml')
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                
+                quality_config = config.get('data_quality', {})
+                full_assessment_schedule = quality_config.get('full_assessment_schedule', 'weekly')
+                gap_filling_schedule = quality_config.get('gap_filling_schedule', 'weekly')
+            else:
+                full_assessment_schedule = 'weekly'
+                gap_filling_schedule = 'weekly'
+        except Exception:
+            full_assessment_schedule = 'weekly'
+            gap_filling_schedule = 'weekly'
+        
+        # Add full quality assessment job (weekly, Sunday at 2 AM UTC)
+        self.scheduler.add_job(
+            self._run_full_quality_assessment,
+            'cron',
+            day_of_week='sun',
+            hour=2,
+            minute=0,
+            id='full_quality_assessment',
+            name='Full Quality Assessment (Weekly)',
+            replace_existing=True
+        )
+        logger.info("Full quality assessment scheduled: Weekly (Sunday 2:00 AM UTC)")
+        
+        # Add gap filling job (weekly, Saturday at 3 AM UTC)
+        if gap_filling_schedule == 'weekly':
+            self.scheduler.add_job(
+                self._run_gap_filling,
+                'cron',
+                day_of_week='sat',
+                hour=3,
+                minute=0,
+                id='gap_filling',
+                name='Gap Filling (Weekly)',
+                replace_existing=True
+            )
+            logger.info("Gap filling scheduled: Weekly (Saturday 3:00 AM UTC)")
+        elif gap_filling_schedule == 'monthly':
+            # Monthly: first Saturday of month at 3 AM UTC
+            self.scheduler.add_job(
+                self._run_gap_filling,
+                'cron',
+                day='1st sat',
+                hour=3,
+                minute=0,
+                id='gap_filling',
+                name='Gap Filling (Monthly)',
+                replace_existing=True
+            )
+            logger.info("Gap filling scheduled: Monthly (First Saturday 3:00 AM UTC)")
         
         # Run immediately on startup (optional - comment out if you don't want this)
         # logger.info("Running initial update on startup...")

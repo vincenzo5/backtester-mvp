@@ -46,6 +46,28 @@ data:
   cache_directory: data/cache
   historical_start_date: "2017-01-01"  # Default start date for data collection (configurable)
 
+# Data Quality Settings
+data_quality:
+  weights:
+    coverage: 0.30      # Most critical for backtesting
+    integrity: 0.25      # Data must be valid
+    gaps: 0.20          # Affects strategy execution
+    completeness: 0.15   # Date range matters
+    consistency: 0.10
+    volume: 0.05
+    outliers: 0.05
+  thresholds:
+    consistency_tolerance: 0.01  # 1% price difference
+    outlier_iqr_multiplier: 1.5
+    gap_penalty_small: 0.5  # per gap <24h
+    gap_penalty_large: 1.0  # per gap >=24h
+    outlier_penalty: 0.1    # per outlier
+  warning_threshold: 70  # Warn if composite < C grade
+  liveliness_cache_days: 30  # Days to cache liveliness checks
+  incremental_assessment: true  # Run incremental after daily update
+  full_assessment_schedule: "weekly"  # weekly or daily
+  gap_filling_schedule: "weekly"  # weekly or monthly
+
 # Parallel Execution Settings
 parallel:
   # Execution mode

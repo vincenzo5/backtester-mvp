@@ -14,8 +14,9 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 from data.updater import update_market, MarketNotFoundError
-from data.cache_manager import load_manifest
+from data.cache_manager import load_manifest, get_manifest_entry, update_manifest, read_cache
 from data.fetcher import create_exchange
+from data.market_liveliness import check_market_on_exchange, is_liveliness_stale
 
 
 # Setup logging
@@ -95,6 +96,78 @@ def update_exchange_metadata(removed_markets: List[str]):
         yaml.dump(metadata, f, default_flow_style=False, sort_keys=False)
     
     logger.info(f"Removed {len(removed_markets)} markets from metadata: {removed_markets}")
+
+
+def check_market_liveliness_lightweight(symbol: str, timeframe: str, 
+                                       exchange_name: str, metadata: Dict[str, Any]) -> None:
+    """
+    Perform lightweight liveliness check if verification date is stale.
+    
+    Only checks on the primary exchange to minimize API calls.
+    Updates manifest with liveliness status.
+    
+    Args:
+        symbol: Trading pair (e.g., 'BTC/USD')
+        timeframe: Data granularity (e.g., '1h', '1d')
+        exchange_name: Primary exchange name
+        metadata: Exchange metadata dictionary (for cache_days config)
+    """
+    manifest_entry = get_manifest_entry(symbol, timeframe)
+    if not manifest_entry:
+        return
+    
+    # Check if liveliness verification is stale
+    verified_date_str = manifest_entry.get('market_verified_date')
+    
+    # Load cache days from config, default to 30
+    try:
+        import yaml
+        config_path = Path('config/config.yaml')
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            cache_days = config.get('data_quality', {}).get('liveliness_cache_days', 30)
+        else:
+            cache_days = 30
+    except Exception:
+        cache_days = 30
+    
+    if not is_liveliness_stale(verified_date_str, cache_days=cache_days):
+        return  # Still fresh, no need to check
+    
+    # Perform lightweight check on primary exchange only
+    try:
+        exchange = create_exchange(exchange_name, enable_rate_limit=True)
+        market_info = check_market_on_exchange(exchange, symbol, timeframe='1h')
+        
+        if market_info:
+            market_live = market_info['exists']
+            market_verified_date = datetime.utcnow().isoformat() + 'Z'
+            
+            # Update manifest
+            df = read_cache(symbol, timeframe)
+            if not df.empty:
+                update_manifest(
+                    symbol, timeframe, df,
+                    market_live=market_live,
+                    market_verified_date=market_verified_date
+                )
+                logger.debug(f"Updated liveliness for {symbol} {timeframe}: live={market_live}")
+        else:
+            # Market not found on primary exchange - mark as potentially delisted
+            # (full check across all exchanges happens in quality service)
+            market_verified_date = datetime.utcnow().isoformat() + 'Z'
+            df = read_cache(symbol, timeframe)
+            if not df.empty:
+                update_manifest(
+                    symbol, timeframe, df,
+                    market_live=False,
+                    market_verified_date=market_verified_date
+                )
+                logger.debug(f"Market {symbol} not found on {exchange_name}")
+    except Exception as e:
+        logger.debug(f"Error checking liveliness for {symbol} {timeframe}: {str(e)}")
+        # Don't fail the update if liveliness check fails
 
 
 def run_update(target_end_date: str = None) -> Dict[str, Any]:
@@ -180,9 +253,21 @@ def run_update(target_end_date: str = None) -> Dict[str, Any]:
                 logger.info(f"✓ Added {candles_added} candles")
                 updated += 1
                 
+                # Lightweight liveliness check (only if stale)
+                try:
+                    check_market_liveliness_lightweight(symbol, timeframe, exchange_name, metadata)
+                except Exception as e:
+                    logger.debug(f"Liveliness check failed for {symbol} {timeframe}: {str(e)}")
+                
             elif status == 'up_to_date':
                 logger.info("✓ Up to date")
                 skipped += 1
+                
+                # Lightweight liveliness check (only if stale)
+                try:
+                    check_market_liveliness_lightweight(symbol, timeframe, exchange_name, metadata)
+                except Exception as e:
+                    logger.debug(f"Liveliness check failed for {symbol} {timeframe}: {str(e)}")
                 
             elif status == 'market_not_found':
                 error_msg = result.get('error', 'Market not found')
