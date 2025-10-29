@@ -10,7 +10,7 @@ import sys
 import json
 import csv
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 # Add parent directory to path

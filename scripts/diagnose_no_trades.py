@@ -16,7 +16,7 @@ from data.cache_manager import read_cache
 from backtest.engine import prepare_backtest_data
 from strategies.sma_cross import SMACrossStrategy
 from strategies.rsi_sma_strategy import RSISMAStrategy
-from config.manager import ConfigManager
+from config import ConfigManager
 import pandas as pd
 import numpy as np
 
@@ -91,7 +91,10 @@ def diagnose_no_trades():
         'rsi_overbought': 70
     }
     
-    strategy_params = config.get_strategy_params()
+    # Use strategy defaults (no config params)
+    # Backtrader strategies use params defined in code
+    # We don't need to extract them - just pass empty dict and backtrader uses defaults
+    strategy_params = {}
     enriched_df = prepare_backtest_data(df, RSISMAStrategy, strategy_params)
     
     if 'RSI_14' in enriched_df.columns and 'SMA_20' in enriched_df.columns:

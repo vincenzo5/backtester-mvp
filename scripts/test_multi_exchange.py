@@ -28,7 +28,7 @@ from data.cache_manager import (
 
 def load_metadata():
     """Load exchange metadata configuration."""
-    with open('config/exchange_metadata.yaml', 'r') as f:
+    with open('config/markets.yaml', 'r') as f:
         return yaml.safe_load(f)
 
 

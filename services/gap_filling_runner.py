@@ -25,12 +25,9 @@ logger = logging.getLogger(__name__)
 
 def load_exchange_metadata() -> Dict[str, Any]:
     """Load exchange metadata configuration."""
-    metadata_path = Path('config/exchange_metadata.yaml')
-    if not metadata_path.exists():
-        raise FileNotFoundError(f"Exchange metadata not found: {metadata_path}")
-    
-    with open(metadata_path, 'r') as f:
-        return yaml.safe_load(f)
+    from config import ConfigManager
+    config = ConfigManager()
+    return config.get_exchange_metadata()
 
 
 def run_gap_filling(priority: str = 'largest', max_gaps: Optional[int] = None) -> Dict[str, Any]:

@@ -1,0 +1,47 @@
+## Configuration Standards
+
+### Accessing Configuration
+- ALWAYS use `ConfigManager` instance for configuration access
+- NEVER use `yaml.safe_load()` directly on config files
+- Use typed getter methods: `config.get_backtest_config()`, not `config.config['backtest']`
+- Never access raw internal config dictionaries
+
+### Configuration File Organization
+- Configuration is split into domain-specific files: `config/[domain].yaml`
+- Each domain has its own file: `backtest.yaml`, `trading.yaml`, `strategy.yaml`, `data.yaml`, `data_quality.yaml`, `parallel.yaml`, `walkforward.yaml`, `exchange.yaml`
+- Profile-based configs go in `config/profiles/[profile].yaml`
+- Exchange metadata remains in `exchange_metadata.yaml` (discovery data, not configuration)
+- NEVER create or modify a monolithic `config.yaml` file
+
+### Adding New Configuration
+- New config belongs in the appropriate domain-specific file: `config/[domain].yaml`
+- Add corresponding validator in `config/validator.py` for the domain
+- Add typed accessor method in `config/accessor.py` 
+- Create typed config dataclass/Pydantic model for type safety
+- Update tests in `tests/test_walkforward_config.py`
+
+### Configuration Validation
+- All numeric fields must have range validation
+- All date fields must validate ISO format and logical constraints (e.g., end_date > start_date)
+- Enum fields must validate against allowed values (mode: auto|manual, fee_type: maker|taker)
+- Required fields must be validated for each domain
+- Add validation tests for new fields
+- Validation logic belongs in `config/validator.py`, not in accessor methods
+
+### Configuration Architecture
+- Use ConfigLoader to load YAML files (do not load YAML directly)
+- Use ConfigValidator to validate configuration (validation is separate from loading)
+- Use ConfigAccessor to access configuration values (typed accessors, not raw dicts)
+- ConfigManager is a facade that orchestrates Loader + Validator + Accessor
+
+### Strategy Configuration
+- Strategy parameters belong in `config/strategy.yaml`
+- Each strategy can have strategy-specific parameter validation
+- Strategy name and parameters must be validated
+
+### Testing Configuration
+- All config changes require tests in `tests/test_walkforward_config.py`
+- Test validation logic for new config sections
+- Test profile-based configs (e.g., quick profile)
+- Test ConfigManager serialization for parallel execution
+

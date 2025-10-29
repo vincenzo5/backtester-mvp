@@ -7,7 +7,7 @@ progress indicators, summaries, and error messages.
 
 from typing import Optional
 from tqdm import tqdm
-from config.manager import ConfigManager
+from config import ConfigManager
 from backtest.result import RunResults
 
 

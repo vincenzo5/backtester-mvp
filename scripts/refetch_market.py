@@ -14,7 +14,7 @@ from pathlib import Path
 # Add parent directory to path for imports (needed for Docker)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.manager import ConfigManager
+from config import ConfigManager
 from data.fetcher import create_exchange, fetch_historical, MarketNotFoundError, FetchError
 from data.cache_manager import delete_cache, write_cache, get_cache_path
 from data.validator import validate_data, remove_duplicates

@@ -17,7 +17,7 @@ from pathlib import Path
 # Add parent directory to path for imports (needed for Docker)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.manager import ConfigManager
+from config import ConfigManager
 from data.fetcher import create_exchange, fetch_historical, MarketNotFoundError, FetchError
 from data.cache_manager import write_cache, get_cache_path
 from data.validator import validate_data, remove_duplicates
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 def load_metadata():
     """Load exchange metadata configuration."""
-    metadata_path = Path('config/exchange_metadata.yaml')
+    metadata_path = Path('config/markets.yaml')
     with open(metadata_path, 'r') as f:
         return yaml.safe_load(f)
 
@@ -137,7 +137,9 @@ def main():
         # Config manager might not have historical_start_date yet, use default
         config_manager = None
     
-    exchange_name = metadata['exchange']
+    # Get exchange from config
+    config = ConfigManager()
+    exchange_name = config.get_exchange_name()
     markets = metadata['top_markets'].copy()  # Copy to allow modification
     timeframes = metadata['timeframes']
     

@@ -7,7 +7,7 @@ from typing import Type, List
 from datetime import datetime
 import time
 
-from config.manager import ConfigManager
+from config import ConfigManager
 from backtest.walkforward.window_generator import generate_windows_from_period
 from backtest.walkforward.optimizer import WindowOptimizer
 from backtest.walkforward.results import WalkForwardResults, WalkForwardWindowResult

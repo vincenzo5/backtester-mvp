@@ -28,7 +28,7 @@ def fetch_coinbase_metadata(refresh=False):
     Returns:
         dict: Exchange metadata including timeframes, markets, and fees
     """
-    metadata_file = 'config/exchange_metadata.yaml'
+    metadata_file = 'config/markets.yaml'
     
     # Check if metadata exists and user doesn't want to refresh
     if os.path.exists(metadata_file) and not refresh:
@@ -95,9 +95,9 @@ def fetch_coinbase_metadata(refresh=False):
         }
     
     # Build metadata structure
+    # Note: 'exchange' field removed - exchange selection is done via exchange.yaml config
     metadata = {
         'last_updated': datetime.now().isoformat(),
-        'exchange': 'coinbase',
         'timeframes': timeframes,
         'top_markets': top_markets,
         'fees': fees
@@ -123,7 +123,7 @@ def main():
         print("\n" + "="*60)
         print("EXCHANGE METADATA")
         print("="*60)
-        print(f"Exchange: {metadata['exchange']}")
+        # Exchange selection is done via exchange.yaml config, not this file
         print(f"Last Updated: {metadata['last_updated']}")
         print(f"\nSupported Timeframes ({len(metadata['timeframes'])}):")
         for tf in metadata['timeframes']:

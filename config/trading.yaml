@@ -1,0 +1,12 @@
+# Trading Settings
+trading:
+  use_exchange_fees: false  # Set to false to use hardcoded fees below
+  fee_type: taker  # "maker" or "taker" - Coinbase Advanced Trade rates
+  slippage: 0.0005  # 0.05% slippage
+  risk_per_trade: 0.01  # Risk 1% of capital per trade (default stop loss distance)
+  position_size: 0.1  # Maximum position size relative to portfolio (0.1 = 10%)
+  
+  # Coinbase Advanced Trade fees (hardcoded for accuracy)
+  commission: 0.006  # 0.6% (taker fee - default)
+  commission_maker: 0.004  # 0.4% (maker fee - not used unless fee_type is 'maker')
+

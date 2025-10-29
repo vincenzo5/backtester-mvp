@@ -17,6 +17,7 @@ from data.updater import update_market, MarketNotFoundError
 from data.cache_manager import load_manifest, get_manifest_entry, update_manifest, read_cache
 from data.fetcher import create_exchange
 from data.market_liveliness import check_market_on_exchange, is_liveliness_stale
+from config import ConfigManager
 
 
 # Setup logging
@@ -36,12 +37,9 @@ logger = logging.getLogger(__name__)
 
 def load_exchange_metadata() -> Dict[str, Any]:
     """Load exchange metadata configuration."""
-    metadata_path = Path('config/exchange_metadata.yaml')
-    if not metadata_path.exists():
-        raise FileNotFoundError(f"Exchange metadata not found: {metadata_path}")
-    
-    with open(metadata_path, 'r') as f:
-        return yaml.safe_load(f)
+    from config import ConfigManager
+    config = ConfigManager()
+    return config.get_exchange_metadata()
 
 
 def get_markets_to_update(metadata: Dict[str, Any]) -> List[tuple]:
@@ -82,7 +80,7 @@ def update_exchange_metadata(removed_markets: List[str]):
     if not removed_markets:
         return
     
-    metadata_path = Path('config/exchange_metadata.yaml')
+    metadata_path = Path('config/markets.yaml')
     
     with open(metadata_path, 'r') as f:
         metadata = yaml.safe_load(f)
@@ -121,14 +119,10 @@ def check_market_liveliness_lightweight(symbol: str, timeframe: str,
     
     # Load cache days from config, default to 30
     try:
-        import yaml
-        config_path = Path('config/config.yaml')
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-            cache_days = config.get('data_quality', {}).get('liveliness_cache_days', 30)
-        else:
-            cache_days = 30
+        from config import ConfigManager
+        config = ConfigManager()
+        dq_config = config.get_data_quality_config()
+        cache_days = dq_config.liveliness_cache_days
     except Exception:
         cache_days = 30
     
@@ -194,7 +188,13 @@ def run_update(target_end_date: str = None) -> Dict[str, Any]:
     # Load metadata
     try:
         metadata = load_exchange_metadata()
-        exchange_name = metadata.get('exchange', 'coinbase')
+        # Get exchange from config, not metadata (metadata is just discovery data)
+        try:
+            config = ConfigManager()
+            exchange_name = config.get_exchange_name()
+        except Exception:
+            # Fallback if config not available
+            exchange_name = 'coinbase'
         combinations = get_markets_to_update(metadata)
         
         logger.info(f"Exchange: {exchange_name}")
@@ -319,7 +319,7 @@ def run_update(target_end_date: str = None) -> Dict[str, Any]:
     logger.info("=" * 80)
     
     # Update metadata last_updated timestamp
-    metadata_path = Path('config/exchange_metadata.yaml')
+    metadata_path = Path('config/markets.yaml')
     with open(metadata_path, 'r') as f:
         metadata = yaml.safe_load(f)
     metadata['last_updated'] = datetime.utcnow().isoformat()

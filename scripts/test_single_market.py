@@ -21,7 +21,7 @@ from data.cache_manager import read_cache
 from backtest.engine import run_backtest, prepare_backtest_data
 from strategies.sma_cross import SMACrossStrategy
 from strategies.rsi_sma_strategy import RSISMAStrategy
-from config.manager import ConfigManager
+from config import ConfigManager
 import pandas as pd
 
 def test_single_market():

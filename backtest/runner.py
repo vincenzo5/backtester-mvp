@@ -9,7 +9,7 @@ from itertools import product
 from typing import Type, List
 import pandas as pd
 
-from config.manager import ConfigManager
+from config import ConfigManager
 from backtest.result import RunResults
 from backtest.execution.hardware import HardwareProfile
 from backtest.execution.parallel import ParallelExecutor

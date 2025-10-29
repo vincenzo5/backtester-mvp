@@ -1,0 +1,4 @@
+# Strategy Selection
+strategy:
+  name: sma_cross  # Strategy name to load (parameters defined in strategy code)
+

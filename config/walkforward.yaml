@@ -1,0 +1,27 @@
+# Walk-Forward Optimization Settings
+walkforward:
+  enabled: true  # Toggle walk-forward mode on/off (true for walk-forward, false for single backtest)
+  
+  # Period specification (in-sample/out-of-sample)
+  # Format: "1Y/6M" = 1 year in-sample, 6 months out-of-sample
+  # Supported: Y (years), M (months), W (weeks), D (days)
+  # Can test multiple period combinations
+  periods: ["3M/1M", "6M/3M"]  # Shorter periods for the available ~10 months of data
+  
+  # Fitness functions for selecting best parameters in each window
+  # Options: net_profit, sharpe_ratio, max_dd, profit_factor, np_avg_dd
+  # Must be a list (even for single function)
+  fitness_functions: ["np_avg_dd", "net_profit"]
+  
+  # Parameter ranges for optimization (grid search with step size)
+  # Only used when walkforward.enabled is true
+  parameter_ranges:
+    fast_period:
+      start: 10
+      end: 30
+      step: 10  # Smaller range for quicker testing: [10, 20, 30]
+    slow_period:
+      start: 40
+      end: 60
+      step: 20  # Smaller range for quicker testing: [40, 60]
+

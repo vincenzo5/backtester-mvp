@@ -1,0 +1,10 @@
+# Data Source & Storage Settings
+data:
+  # Exchange API selection (where to fetch data from)
+  exchange: coinbase  # Options: binance, coinbase, kraken, bybit, okx, etc.
+  
+  # Cache settings
+  cache_enabled: true
+  cache_directory: data/cache
+  historical_start_date: "2017-01-01"  # Default start date for data collection (configurable)
+

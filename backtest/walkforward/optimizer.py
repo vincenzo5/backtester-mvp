@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
-from config.manager import ConfigManager
+from config import ConfigManager
 from backtest.engine import run_backtest, prepare_backtest_data
 from backtest.walkforward.param_grid import generate_parameter_combinations
 from backtest.walkforward.metrics_calculator import calculate_metrics, calculate_fitness, BacktestMetrics
@@ -175,20 +175,18 @@ class WindowOptimizer:
         # We'll modify strategy params directly
         try:
             # Run backtest with these parameters
-            # We need to manually set strategy params
-            initial_params = self.config.get_strategy_params()
-            
-            # Temporarily override params
-            original_strategy_params = self.config.config['strategy']['parameters'].copy()
-            self.config.config['strategy']['parameters'].update(params)
+            # Parameters come from optimization ranges, not config
+            # We'll pass params directly to the backtest
             
             try:
-                # Run backtest on in-sample data
+                # Run backtest on in-sample data with optimized parameters
+                from backtest.engine import run_backtest
                 result_dict = run_backtest(
                     self.config,
                     self.in_sample_df,
                     self.strategy_class,
-                    verbose=False
+                    verbose=False,
+                    strategy_params=params  # Pass optimized parameters
                 )
                 
                 # Get metrics from backtest
@@ -218,14 +216,14 @@ class WindowOptimizer:
                 )
                 
                 return metrics
-                
-            finally:
-                # Restore original params
-                self.config.config['strategy']['parameters'] = original_strategy_params
+            except Exception as e:
+                if self.verbose:
+                    print(f"    Error in backtest for params {params}: {e}")
+                return None
                 
         except Exception as e:
             if self.verbose:
-                print(f"    Error in backtest for params {params}: {e}")
+                print(f"    Error evaluating parameters {params}: {e}")
             return None
 
 

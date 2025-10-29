@@ -187,7 +187,7 @@ def update_market(exchange_name: str, symbol: str, timeframe: str,
         if force_refresh and source_exchange is None:
             # Import here to avoid circular dependency
             import yaml
-            with open('config/exchange_metadata.yaml', 'r') as f:
+            with open('config/markets.yaml', 'r') as f:
                 metadata = yaml.safe_load(f)
             exchanges = metadata.get('exchanges', ['coinbase', 'binance', 'kraken'])
             

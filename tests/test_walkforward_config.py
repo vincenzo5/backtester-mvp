@@ -6,7 +6,7 @@ import unittest
 import tempfile
 import os
 import yaml
-from config.manager import ConfigManager, ConfigError
+from config import ConfigManager, ConfigError
 
 
 class TestWalkForwardConfig(unittest.TestCase):

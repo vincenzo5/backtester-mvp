@@ -22,7 +22,7 @@ from data.fetcher import create_exchange, MarketNotFoundError
 
 def load_metadata():
     """Load exchange metadata configuration."""
-    metadata_path = Path('config/exchange_metadata.yaml')
+    metadata_path = Path('config/markets.yaml')
     with open(metadata_path, 'r') as f:
         return yaml.safe_load(f)
 
@@ -60,7 +60,8 @@ def check_all_markets(dry_run=True):
     
     # Load metadata
     metadata = load_metadata()
-    exchange_name = metadata['exchange']
+    # Exchange selection is done via exchange.yaml config
+    exchange_name = 'coinbase'  # Default for this script
     markets = metadata.get('top_markets', [])
     
     if exchange_name != 'coinbase':
@@ -113,14 +114,14 @@ def check_all_markets(dry_run=True):
     # Optionally update metadata
     if unavailable and not dry_run:
         print("=" * 80)
-        print("UPDATING exchange_metadata.yaml")
+        print("UPDATING markets.yaml")
         print("=" * 80)
         
         unavailable_markets = [m for m, _ in unavailable]
         metadata['top_markets'] = available
         metadata['last_updated'] = datetime.utcnow().isoformat()
         
-        metadata_path = Path('config/exchange_metadata.yaml')
+        metadata_path = Path('config/markets.yaml')
         with open(metadata_path, 'w') as f:
             yaml.dump(metadata, f, default_flow_style=False, sort_keys=False)
         
@@ -131,7 +132,7 @@ def check_all_markets(dry_run=True):
         print("=" * 80)
         print("DRY RUN - No changes made")
         print("=" * 80)
-        print("To actually update exchange_metadata.yaml, run with --apply flag:")
+        print("To actually update markets.yaml, run with --apply flag:")
         print(f"  python scripts/check_coinbase_markets.py --apply")
         print()
     
@@ -144,7 +145,7 @@ def main():
     
     if len(sys.argv) > 1 and sys.argv[1] == '--apply':
         dry_run = False
-        print("⚠️  This will modify exchange_metadata.yaml. Proceed? (y/N): ", end='', flush=True)
+        print("⚠️  This will modify markets.yaml. Proceed? (y/N): ", end='', flush=True)
         response = input().strip().lower()
         if response != 'y':
             print("Cancelled.")

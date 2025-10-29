@@ -12,7 +12,7 @@ from backtest.walkforward.period_parser import parse_period, validate_period, Pe
 from backtest.walkforward.window_generator import generate_windows, generate_windows_from_period, WalkForwardWindow
 from backtest.walkforward.param_grid import generate_parameter_values, generate_parameter_combinations, count_parameter_combinations
 from backtest.walkforward.metrics_calculator import calculate_fitness, BacktestMetrics
-from config.manager import ConfigManager
+from config import ConfigManager
 
 
 class TestPeriodParser(unittest.TestCase):

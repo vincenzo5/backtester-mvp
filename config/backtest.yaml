@@ -1,0 +1,13 @@
+# Backtest Scope & Execution Settings
+backtest:
+  # Date range
+  start_date: "2022-01-01"  # Format: YYYY-MM-DD
+  end_date: "2025-10-27"
+  initial_capital: 100000.0  # Fractional positions supported, so $100k works with any price
+  verbose: false  # Minimal output for multi-run tests
+  
+  # Market/Timeframe filtering (optional - filters from markets.yaml)
+  # If omitted or set to null, uses ALL from markets.yaml
+  symbols: [BTC/USD]  # Single symbol for walk-forward test
+  timeframes: [1d]     # 1-day timeframe for walk-forward test
+

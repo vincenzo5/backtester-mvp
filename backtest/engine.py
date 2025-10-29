@@ -8,7 +8,7 @@ for walk-forward optimization scenarios.
 Quick Start:
     from backtest.engine import run_backtest, prepare_backtest_data
     from strategies import get_strategy_class
-    from config.manager import ConfigManager
+    from config import ConfigManager
     
     config = ConfigManager()
     strategy_class = get_strategy_class('sma_cross')
@@ -235,7 +235,7 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
     return result_df
 
 
-def run_backtest(config_manager, df, strategy_class, verbose=False):
+def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_params=None):
     """Run the backtest with backtrader.
     
     This function automatically prepares data (indicators + data sources) before
@@ -263,9 +263,6 @@ def run_backtest(config_manager, df, strategy_class, verbose=False):
         print("RUNNING BACKTEST")
         print("="*60 + "\n")
     
-    # Prepare data: compute indicators and align data sources
-    strategy_params = config_manager.get_strategy_params()
-    
     # Try to get symbol from config (first symbol if multiple)
     symbol = None
     try:
@@ -274,6 +271,12 @@ def run_backtest(config_manager, df, strategy_class, verbose=False):
             symbol = symbols[0]  # Use first symbol if available
     except Exception:
         pass  # If we can't get symbol, use default in prepare_backtest_data
+    
+    # Get strategy parameters
+    # If strategy_params is None, use empty dict - backtrader will use strategy code defaults
+    # Strategy parameters are defined in the strategy class itself via params tuple
+    if strategy_params is None:
+        strategy_params = {}  # Empty dict lets backtrader use defaults from strategy.params
     
     enriched_df = prepare_backtest_data(df, strategy_class, strategy_params, symbol=symbol)
     
@@ -289,11 +292,12 @@ def run_backtest(config_manager, df, strategy_class, verbose=False):
     # Create a cerebro entity
     cerebro = bt.Cerebro()
     
-    # Add a strategy with dynamic parameters
+    # Add a strategy with parameters
+    # If strategy_params provided, override defaults; otherwise use strategy code defaults
     cerebro.addstrategy(
         strategy_class,
         printlog=verbose,
-        **strategy_params  # Dynamic parameter passing
+        **strategy_params  # Pass params (may be empty dict to use strategy defaults)
     )
     
     # Create a Data Feed from enriched pandas DataFrame

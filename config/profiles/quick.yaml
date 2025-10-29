@@ -1,0 +1,6 @@
+# Quick test configuration (overrides default configs when --quick flag is used)
+backtest:
+  symbols: [BTC/USD]  # Single symbol for quick testing
+  timeframes: [1h]     # Single timeframe for quick testing
+  verbose: true  # Detailed output for quick tests
+

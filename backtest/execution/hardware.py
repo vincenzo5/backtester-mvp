@@ -125,7 +125,7 @@ class HardwareProfile:
         try:
             import tracemalloc
             import pandas as pd
-            from config.manager import ConfigManager
+            from config import ConfigManager
             from data.cache_manager import read_cache
             from backtest.engine import run_backtest
             from strategies import get_strategy_class

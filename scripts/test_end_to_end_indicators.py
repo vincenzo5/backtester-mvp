@@ -14,7 +14,7 @@ from data.cache_manager import read_cache
 from backtest.engine import run_backtest, prepare_backtest_data
 from strategies.rsi_sma_strategy import RSISMAStrategy
 from strategies.sma_cross import SMACrossStrategy
-from config.manager import ConfigManager
+from config import ConfigManager
 import pandas as pd
 
 def test_rsi_sma_with_real_data():
@@ -73,7 +73,7 @@ def test_rsi_sma_with_real_data():
         config = ConfigManager()
         # Override strategy params for this test
         config.config['strategy']['name'] = 'rsi_sma'
-        config.config['strategy']['parameters'] = strategy_params
+        # Strategy parameters now come from strategy code, not config
         
         # Filter date range to match data
         start_date = df.index[0].strftime('%Y-%m-%d')

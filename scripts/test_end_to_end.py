@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def backup_and_modify_metadata():
     """Backup metadata and create minimal test version."""
-    metadata_path = Path('config/exchange_metadata.yaml')
+    metadata_path = Path('config/markets.yaml')
     backup_path = Path('config/exchange_metadata.yaml.backup')
     
     # Backup original
@@ -37,7 +37,8 @@ def backup_and_modify_metadata():
     
     # Create minimal test version (just 2 markets × 2 timeframes)
     test_metadata = {
-        'exchange': metadata.get('exchange', 'coinbase'),
+        # Exchange comes from config, not metadata
+        'exchange': 'coinbase',  # Will use actual config in real usage
         'timeframes': ['1h', '1d'],  # Only 2 timeframes
         'top_markets': ['BTC/USD', 'ETH/USD'],  # Only 2 markets
         'fees': metadata.get('fees', {'maker': 0.004, 'taker': 0.006}),
@@ -54,7 +55,7 @@ def backup_and_modify_metadata():
 
 def restore_metadata(backup_path):
     """Restore original metadata."""
-    metadata_path = Path('config/exchange_metadata.yaml')
+    metadata_path = Path('config/markets.yaml')
     if backup_path.exists():
         shutil.copy(backup_path, metadata_path)
         backup_path.unlink()
@@ -117,7 +118,7 @@ def test_backtest_integration():
     print("=" * 80)
     
     try:
-        from config.manager import ConfigManager
+        from config import ConfigManager
         from data.cache_manager import read_cache
         from backtest.engine import run_backtest
         from strategies import get_strategy_class

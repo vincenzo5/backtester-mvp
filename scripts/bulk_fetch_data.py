@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 def load_metadata():
     """Load exchange metadata configuration."""
-    with open('config/exchange_metadata.yaml', 'r') as f:
+    with open('config/markets.yaml', 'r') as f:
         return yaml.safe_load(f)
 
 
@@ -61,7 +61,10 @@ def main():
     
     # Load metadata
     metadata = load_metadata()
-    execution_exchange = metadata.get('exchange', 'coinbase')
+    # Get exchange from config
+    from config import ConfigManager
+    config = ConfigManager()
+    execution_exchange = config.get_exchange_name()
     exchanges = metadata.get('exchanges', ['coinbase', 'binance', 'kraken'])
     markets = metadata['top_markets']
     timeframes = metadata['timeframes']

@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 
-from config.manager import ConfigManager
+from config import ConfigManager
 from backtest.runner import BacktestRunner
 from strategies.sma_cross import SMACrossStrategy
 

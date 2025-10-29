@@ -23,12 +23,12 @@ fi
 # Count new format files (simplified naming without date ranges)
 NEW_FORMAT_COUNT=$(ls -1 data/cache/*.csv 2>/dev/null | grep -v "_2017-" | wc -l | tr -d ' ' || echo "0")
 
-# Calculate expected count from exchange_metadata.yaml
+# Calculate expected count from markets.yaml
 EXPECTED_COUNT=$(python3 -c "
 import yaml
 from pathlib import Path
 try:
-    metadata = yaml.safe_load(open('config/exchange_metadata.yaml'))
+    metadata = yaml.safe_load(open('config/markets.yaml'))
     markets = len(metadata.get('top_markets', []))
     timeframes = len(metadata.get('timeframes', []))
     print(markets * timeframes)
@@ -39,7 +39,7 @@ except:
 # Run bulk fetch if we don't have enough new format files
 if [ "$NEW_FORMAT_COUNT" -lt "$EXPECTED_COUNT" ]; then
     echo "📥 Running bulk data collection..."
-    echo "   Expected: $EXPECTED_COUNT files (from exchange_metadata.yaml)"
+    echo "   Expected: $EXPECTED_COUNT files (from markets.yaml)"
     echo "   Found: $NEW_FORMAT_COUNT files"
     echo "   Fetching all markets/timeframes (existing files will be skipped)"
     echo "   Estimated time: 2-5 hours depending on number of markets"

@@ -19,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from services.update_runner import run_update
 from services.quality_runner import run_incremental_assessment, run_full_assessment
 from services.gap_filling_runner import run_gap_filling
-import yaml
 
 
 # Setup logging
@@ -74,15 +73,14 @@ class SchedulerDaemon:
                 
                 # Run incremental quality assessment after update (if enabled)
                 try:
-                    config_path = Path('config/config.yaml')
-                    if config_path.exists():
-                        with open(config_path, 'r') as f:
-                            config = yaml.safe_load(f)
-                        
-                        if config.get('data_quality', {}).get('incremental_assessment', True):
-                            logger.info("Running incremental quality assessment...")
-                            assessment_result = run_incremental_assessment()
-                            logger.info(f"Incremental assessment: {assessment_result.get('assessed', 0)} datasets assessed")
+                    from config import ConfigManager
+                    config = ConfigManager()
+                    dq_config = config.get_data_quality_config()
+                    
+                    if dq_config.incremental_assessment:
+                        logger.info("Running incremental quality assessment...")
+                        assessment_result = run_incremental_assessment()
+                        logger.info(f"Incremental assessment: {assessment_result.get('assessed', 0)} datasets assessed")
                 except Exception as e:
                     logger.warning(f"Error running incremental quality assessment: {str(e)}")
             else:
@@ -147,17 +145,11 @@ class SchedulerDaemon:
         
         # Load config to check schedules
         try:
-            config_path = Path('config/config.yaml')
-            if config_path.exists():
-                with open(config_path, 'r') as f:
-                    config = yaml.safe_load(f)
-                
-                quality_config = config.get('data_quality', {})
-                full_assessment_schedule = quality_config.get('full_assessment_schedule', 'weekly')
-                gap_filling_schedule = quality_config.get('gap_filling_schedule', 'weekly')
-            else:
-                full_assessment_schedule = 'weekly'
-                gap_filling_schedule = 'weekly'
+            from config import ConfigManager
+            config = ConfigManager()
+            dq_config = config.get_data_quality_config()
+            full_assessment_schedule = dq_config.full_assessment_schedule
+            gap_filling_schedule = dq_config.gap_filling_schedule
         except Exception:
             full_assessment_schedule = 'weekly'
             gap_filling_schedule = 'weekly'

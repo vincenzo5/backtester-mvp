@@ -34,7 +34,7 @@ def _run_backtest_worker(work_item: Dict[str, Any]) -> Dict[str, Any]:
     """
     try:
         # Reconstruct config from dict
-        from config.manager import ConfigManager
+        from config import ConfigManager
         config = ConfigManager._from_dict(work_item['config_dict'])
         
         # Import strategy dynamically

@@ -22,7 +22,7 @@ from data.cache_manager import (
 )
 from data.validator import validate_data, remove_duplicates
 from data.updater import update_market
-from config.manager import ConfigManager
+from config import ConfigManager
 
 
 def test_single_market():

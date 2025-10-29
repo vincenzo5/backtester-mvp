@@ -27,8 +27,8 @@ try {
     # Count new format files (simplified naming without date ranges)
     $newFormatCount = ($allCacheFiles | Where-Object { $_.Name -notmatch "_2017-" } | Measure-Object).Count
     
-    # Calculate expected count from exchange_metadata.yaml
-    $metadataPath = "config/exchange_metadata.yaml"
+    # Calculate expected count from markets.yaml
+    $metadataPath = "config/markets.yaml"
     if (Test-Path $metadataPath) {
         $metadata = Get-Content $metadataPath | ConvertFrom-Yaml
         $markets = ($metadata.top_markets | Measure-Object).Count
@@ -46,7 +46,7 @@ try {
 # Run bulk fetch if we don't have enough new format files
 if ($newFormatCount -lt $expectedCount) {
     Write-Host "📥 Running bulk data collection..." -ForegroundColor Yellow
-    Write-Host "   Expected: $expectedCount files (from exchange_metadata.yaml)" -ForegroundColor Gray
+    Write-Host "   Expected: $expectedCount files (from markets.yaml)" -ForegroundColor Gray
     Write-Host "   Found: $newFormatCount files" -ForegroundColor Gray
     Write-Host "   Fetching all markets/timeframes (existing files will be skipped)" -ForegroundColor Gray
     Write-Host "   Estimated time: 2-5 hours depending on number of markets" -ForegroundColor Gray

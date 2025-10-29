@@ -8,8 +8,6 @@ for OHLCV datasets based on various quality metrics.
 import pandas as pd
 from typing import Dict, Any, Optional
 from datetime import datetime
-import yaml
-from pathlib import Path
 
 from data.validator import (
     validate_ohlcv_integrity, validate_volume, detect_outliers,
@@ -19,12 +17,12 @@ from data.validator import (
 from data.cache_manager import read_cache, get_manifest_entry
 
 
-def load_quality_weights(config_path: str = 'config/config.yaml') -> Dict[str, float]:
+def load_quality_weights(config_manager=None) -> Dict[str, float]:
     """
-    Load quality scoring weights from config file.
+    Load quality scoring weights from config.
     
     Args:
-        config_path: Path to config.yaml file
+        config_manager: Optional ConfigManager instance (creates one if not provided)
     
     Returns:
         Dictionary of component weights
@@ -40,15 +38,12 @@ def load_quality_weights(config_path: str = 'config/config.yaml') -> Dict[str, f
     }
     
     try:
-        config_file = Path(config_path)
-        if not config_file.exists():
-            return default_weights
+        if config_manager is None:
+            from config import ConfigManager
+            config_manager = ConfigManager()
         
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        
-        quality_config = config.get('data_quality', {})
-        weights = quality_config.get('weights', {})
+        dq_config = config_manager.get_data_quality_config()
+        weights = dq_config.weights
         
         # Merge with defaults (use defaults if not specified)
         result = default_weights.copy()
@@ -59,12 +54,12 @@ def load_quality_weights(config_path: str = 'config/config.yaml') -> Dict[str, f
         return default_weights
 
 
-def load_quality_thresholds(config_path: str = 'config/config.yaml') -> Dict[str, Any]:
+def load_quality_thresholds(config_manager=None) -> Dict[str, Any]:
     """
-    Load quality thresholds from config file.
+    Load quality thresholds from config.
     
     Args:
-        config_path: Path to config.yaml file
+        config_manager: Optional ConfigManager instance (creates one if not provided)
     
     Returns:
         Dictionary of threshold values
@@ -79,15 +74,12 @@ def load_quality_thresholds(config_path: str = 'config/config.yaml') -> Dict[str
     }
     
     try:
-        config_file = Path(config_path)
-        if not config_file.exists():
-            return default_thresholds
+        if config_manager is None:
+            from config import ConfigManager
+            config_manager = ConfigManager()
         
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        
-        quality_config = config.get('data_quality', {})
-        thresholds = quality_config.get('thresholds', {})
+        dq_config = config_manager.get_data_quality_config()
+        thresholds = dq_config.thresholds
         
         # Merge with defaults
         result = default_thresholds.copy()

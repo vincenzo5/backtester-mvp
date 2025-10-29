@@ -185,7 +185,7 @@ def test_backtest_engine_integration():
     try:
         from backtest.engine import prepare_backtest_data, run_backtest
         from strategies.rsi_sma_strategy import RSISMAStrategy
-        from config.manager import ConfigManager
+        from config import ConfigManager
         
         # Create sample data
         dates = pd.date_range('2024-01-01', periods=200, freq='D')

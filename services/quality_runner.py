@@ -6,10 +6,9 @@ running either incremental (changed datasets) or full assessments.
 """
 
 import logging
-import yaml
-from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Tuple, Optional
+from pathlib import Path
 import pandas as pd
 
 from data.cache_manager import load_manifest, read_cache, update_manifest, get_manifest_entry
@@ -17,19 +16,15 @@ from data.quality_scorer import assess_data_quality, load_quality_weights, load_
 from data.quality_metadata import save_quality_metadata_entry, load_quality_metadata_entry
 from data.market_liveliness import check_all_exchanges, is_liveliness_stale
 from data.validator import detect_gaps, validate_ohlcv_integrity, detect_outliers, validate_cross_candle_consistency
-from config.manager import ConfigManager
+from config import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 
 def load_exchange_metadata() -> Dict[str, Any]:
     """Load exchange metadata configuration."""
-    metadata_path = Path('config/exchange_metadata.yaml')
-    if not metadata_path.exists():
-        raise FileNotFoundError(f"Exchange metadata not found: {metadata_path}")
-    
-    with open(metadata_path, 'r') as f:
-        return yaml.safe_load(f)
+    config = ConfigManager()
+    return config.get_exchange_metadata()
 
 
 def get_datasets_updated_today() -> List[Tuple[str, str]]:

@@ -10,7 +10,7 @@ import time
 
 from cli.parser import parse_arguments
 from cli.output import ConsoleOutput
-from config.manager import ConfigManager
+from config import ConfigManager
 from backtest.runner import BacktestRunner
 from backtest.metrics import save_results_csv, save_performance_metrics
 from strategies import get_strategy_class
