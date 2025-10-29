@@ -24,11 +24,11 @@ services:
   # Run backtests directly: python main.py
   # Uses same cache from data/cache/ directory
 
-  # Bulk fetch service - run once for initial data collection
+  # Bulk fetch service - run once for initial data collection (uses multi-exchange discovery)
   bulk-fetch:
     build: .
     container_name: bulk-fetcher
-    command: python scripts/bulk_fetch.py
+    command: python scripts/bulk_fetch_data.py
     volumes:
       - ./data/cache:/app/data/cache
       - ./config:/app/config
