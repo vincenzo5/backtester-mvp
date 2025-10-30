@@ -37,6 +37,11 @@ data/raw/*
 !data/cache/.gitkeep
 !data/raw/.gitkeep
 
+# Runtime-generated data files (cache files)
+data/*.csv
+data/*.json
+!data/.cache_manifest.json
+
 # Artifacts (runtime-generated files)
 artifacts/logs/*
 artifacts/reports/*
