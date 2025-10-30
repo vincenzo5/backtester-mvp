@@ -26,13 +26,17 @@ COPY --from=builder /root/.local /root/.local
 # Set up working directory
 WORKDIR /app
 
-# Copy application code (config, data, docs, scripts, main.py remain at root)
+# Copy source code (required for editable install to work)
+COPY src ./src
+
+# Copy application code (config, data, scripts, main.py remain at root)
+# Note: docs/ is excluded via .dockerignore as it's not needed in containers
 COPY config ./config
 COPY data ./data
-COPY docs ./docs
 COPY scripts ./scripts
 COPY tests ./tests
 COPY main.py ./
+COPY pyproject.toml ./
 
 # Make sure scripts are executable
 RUN chmod +x scripts/**/*.py || true

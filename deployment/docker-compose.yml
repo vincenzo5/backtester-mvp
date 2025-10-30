@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Scheduler service - runs continuously and updates data daily
   scheduler:
