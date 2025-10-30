@@ -1,10 +1,33 @@
-## Configuration Standards
+# Backtester MVP - Development Standards
 
-### Accessing Configuration
+## Priority 1: Critical Rules (Must Follow)
+
+### Cache Interface Contract (NEVER BREAK)
+- `data.cache_manager.read_cache(symbol, timeframe) -> DataFrame` signature is STABLE - MUST NOT change
+- `data.cache_manager.write_cache(symbol, timeframe, df)` signature is STABLE - MUST NOT change
+- Return format: DataFrame with DatetimeIndex and columns ['open', 'high', 'low', 'close', 'volume']
+- Cache files: `{SYMBOL}_{TIMEFRAME}.csv` format (e.g., `BTC_USD_1h.csv`)
+- Location: `data/` directory
+- NEVER add/remove columns from cache format without migration
+- NEVER change function signatures without deprecation period
+- See `docs/interface_contract.md` for full contract details
+
+### Configuration Access
 - ALWAYS use `ConfigManager` instance for configuration access
 - NEVER use `yaml.safe_load()` directly on config files
 - Use typed getter methods: `config.get_backtest_config()`, not `config.config['backtest']`
 - Never access raw internal config dictionaries
+- ConfigManager is a facade that orchestrates Loader + Validator + Accessor
+
+### Strategy Development
+- ALL strategies MUST inherit from `strategies.base_strategy.BaseStrategy`
+- Implement `get_required_indicators(cls, params)` classmethod to declare indicators
+- Use `IndicatorSpec('TYPE', params, 'column_name')` pattern for indicator declaration
+- Implement `next()` method with trading logic
+- Optionally override `notify_order()` for custom order handling
+- Indicators are pre-computed before backtests (optimizes walk-forward)
+
+## Priority 2: Important Standards
 
 ### Configuration File Organization
 - Configuration is split into domain-specific files: `config/[domain].yaml`
@@ -15,8 +38,8 @@
 
 ### Adding New Configuration
 - New config belongs in the appropriate domain-specific file: `config/[domain].yaml`
-- Add corresponding validator in `config/validator.py` for the domain
-- Add typed accessor method in `config/accessor.py` 
+- Add corresponding validator in `config/core/validator.py` for the domain
+- Add typed accessor method in `config/core/accessor.py`
 - Create typed config dataclass/Pydantic model for type safety
 - Update tests in `tests/test_walkforward_config.py`
 
@@ -26,22 +49,175 @@
 - Enum fields must validate against allowed values (mode: auto|manual, fee_type: maker|taker)
 - Required fields must be validated for each domain
 - Add validation tests for new fields
-- Validation logic belongs in `config/validator.py`, not in accessor methods
+- Validation logic belongs in `config/core/validator.py`, not in accessor methods
 
 ### Configuration Architecture
 - Use ConfigLoader to load YAML files (do not load YAML directly)
 - Use ConfigValidator to validate configuration (validation is separate from loading)
 - Use ConfigAccessor to access configuration values (typed accessors, not raw dicts)
-- ConfigManager is a facade that orchestrates Loader + Validator + Accessor
+- ConfigManager orchestrates: Loader + Validator + Accessor
 
 ### Strategy Configuration
 - Strategy parameters belong in `config/strategy.yaml`
 - Each strategy can have strategy-specific parameter validation
 - Strategy name and parameters must be validated
 
-### Testing Configuration
-- All config changes require tests in `tests/test_walkforward_config.py`
+### Code Organization
+- Source code in `src/backtester/` package
+- Tests in `tests/` directory (mirroring src structure)
+- Utility scripts in `scripts/` organized by purpose (data/, diagnostics/, setup/, deployment/, tests/)
+- Configuration in `config/` as YAML files
+- Documentation in `docs/` directory
+- Runtime artifacts in `artifacts/logs/`, `artifacts/reports/`, `artifacts/performance/`
+- Use absolute imports from `backtester.` package
+- Import structure: standard libs → third-party → local imports
+- Python files: snake_case (`cache_manager.py`, `gap_filler.py`)
+- Config files: snake_case with `.yaml` extension
+- Class names: PascalCase (`BaseStrategy`, `ConfigManager`)
+
+### Testing Requirements
+- Test files: `test_*.py` in `tests/` directory
+- Tests mirror source structure
+- Use `ConfigManager` in tests, create temporary configs for testing
+- Test edge cases: empty data, invalid params, date out of range
+- Configuration tests in `tests/test_walkforward_config.py`
+- All config changes require tests
 - Test validation logic for new config sections
 - Test profile-based configs (e.g., quick profile)
 - Test ConfigManager serialization for parallel execution
+- Run tests: `pytest tests/test_*.py -v`
 
+## Priority 3: Best Practices
+
+### Backtest Flow
+1. Load configuration via `ConfigManager`
+2. Load OHLCV data via `data.cache_manager.read_cache()`
+3. Prepare data: compute indicators, align data sources (via `engine.prepare_backtest_data()`)
+4. Run backtest via `engine.run_backtest()`
+5. Return results via `result.BacktestResult`
+
+### Walk-Forward Optimization
+- Period specification format: "1Y/6M" (length/step)
+- Use `walkforward/period_parser.py` for parsing
+- Use `walkforward/param_grid.py` for parameter combinations
+- Use `walkforward/optimizer.py` for grid search
+- Store results via `walkforward/results.py`
+
+### Metrics Calculation
+- Standard metrics in `backtest/metrics.py`
+- Walk-forward specific metrics in `walkforward/metrics_calculator.py`
+- ALWAYS calculate and report: Sharpe ratio, total return, max drawdown
+- Include win rate, profit factor for trade-based metrics
+
+### Data Management
+- Use `scripts/data/bulk_fetch.py` for initial historical data collection
+- Use `scripts/data/refetch_market.py` for manual market re-fetch
+- Implement delta updates (only fetch new candles since last cache update)
+- Always update manifest (`.cache_manifest.json`) after cache writes
+- Validate data for gaps and duplicates before writing
+- Log errors to `artifacts/logs/fetch_errors.log`
+- Follow patterns in `src/backtester/data/fetcher.py` for CCXT integration
+
+### Data Quality
+- Use data quality scoring system in `src/backtester/data/quality_scorer.py`
+- Store quality metadata in `src/backtester/data/quality_metadata.json`
+- Follow quality assessment patterns in `scripts/assess_all_data_quality.py`
+- See `docs/data_quality_guide.md` for standards
+
+### Performance Optimization
+- Pre-compute indicators before backtests (optimizes walk-forward)
+- Use `engine.prepare_backtest_data()` for enrichment
+- Remove unnecessary data after backtest completion
+- Use generators for large datasets
+- Profile memory usage for parallel execution
+
+### Logging
+- Use Python `logging` module, not `print()`
+- Write logs to `artifacts/logs/` directory
+- Different log files for different concerns (fetch_errors.log, quality_assessment.log, etc.)
+- Include timestamps and context in log messages
+
+### Security
+- NEVER commit API keys or secrets
+- Use `.env` files for local development (gitignored)
+- Use environment variables for production
+- Document required environment variables
+- Validate all inputs from config files
+- Sanitize file paths to prevent directory traversal
+
+### Git & Version Control
+- Ignore `__pycache__/` and `*.pyc` files
+- Ignore `data/cache/*` and `data/raw/*` (but keep structure)
+- Ignore `artifacts/logs/*`, `artifacts/reports/*`, `artifacts/performance/*`
+- Ignore `.env` and `*.egg-info/`
+- Keep directory structure with `.gitkeep` files
+- Use clear, descriptive commit messages
+- Reference issues/PRs when applicable
+- Breaking changes require migration documentation
+
+### Docker & Deployment
+- `deployment/Dockerfile` for containerization
+- `deployment/docker-compose.yml` for orchestration
+- Services: `bulk-fetch`, `scheduler`, `update-runner`
+- Use `scripts/deployment/start.sh` or `start.ps1` for single-command startup
+- Run bulk fetch and scheduler in containers
+- Persist `data/` directory via volumes
+- Backtests run on host for development workflow
+
+### Documentation Standards
+- All modules require docstrings explaining purpose
+- Include "Quick Start" examples in module docstrings
+- Include "Common Patterns" section for usage examples
+- Include "Extending" section for development patterns
+- Document stable interfaces (see Interface Contract section)
+- Explain WHY, not WHAT (code should be self-documenting)
+- Add comments for complex algorithms
+- Document all public functions and classes
+- Include parameter types and return types
+- Provide usage examples in docstrings
+
+## Quick Reference
+
+### Common Patterns
+```python
+# Config access
+from backtester.config import ConfigManager
+config = ConfigManager()
+bt_config = config.get_backtest_config()
+
+# Strategy indicator declaration
+@classmethod
+def get_required_indicators(cls, params):
+    from indicators.base import IndicatorSpec
+    return [
+        IndicatorSpec('SMA', {'timeperiod': params['fast']}, 'SMA_fast'),
+        IndicatorSpec('RSI', {'timeperiod': 14}, 'RSI_14'),
+    ]
+
+# Custom indicators
+from indicators.base import register_custom_indicator
+def my_indicator(df, params):
+    return df['close'].rolling(window=params['period']).mean()
+register_custom_indicator('MY_SMA', my_indicator)
+
+# Cache reading
+from backtester.data.cache_manager import read_cache
+df = read_cache('BTC/USD', '1h')
+```
+
+## Detailed Documentation References
+
+### Key Files
+- Config patterns: `src/backtester/config/core/manager.py`
+- Cache manager: `src/backtester/data/cache_manager.py`
+- Strategy examples: `src/backtester/strategies/sma_cross.py`
+- Indicator base: `src/backtester/indicators/base.py`
+- Backtest engine: `src/backtester/backtest/engine.py`
+- Test examples: `tests/test_walkforward_config.py`
+
+### Documentation Files
+- Data contract: `docs/interface_contract.md` (CRITICAL)
+- Data pipeline: `docs/data_pipeline.md`
+- Data quality: `docs/data_quality_guide.md`
+- Deployment: `docs/deployment.md`
+- Indicators: `docs/indicators_and_data_sources.md`
