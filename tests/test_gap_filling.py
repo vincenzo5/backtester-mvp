@@ -14,9 +14,9 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.gap_filler import fill_gap, fill_all_gaps
-from data.cache_manager import write_cache, read_cache, CACHE_DIR, MANIFEST_FILE
-from data.validator import detect_gaps
+from backtester.data.gap_filler import fill_gap, fill_all_gaps
+from backtester.data.cache_manager import write_cache, read_cache, CACHE_DIR, MANIFEST_FILE
+from backtester.data.validator import detect_gaps
 
 
 class TestGapFilling(unittest.TestCase):

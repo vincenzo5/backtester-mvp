@@ -8,11 +8,28 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from backtest.walkforward.period_parser import parse_period, validate_period, PeriodParseError
-from backtest.walkforward.window_generator import generate_windows, generate_windows_from_period, WalkForwardWindow
-from backtest.walkforward.param_grid import generate_parameter_values, generate_parameter_combinations, count_parameter_combinations
-from backtest.walkforward.metrics_calculator import calculate_fitness, BacktestMetrics
-from config import ConfigManager
+from backtester.backtest.walkforward.period_parser import parse_period, validate_period, PeriodParseError
+from backtester.backtest.walkforward.window_generator import generate_windows, generate_windows_from_period, WalkForwardWindow
+from backtester.backtest.walkforward.param_grid import generate_parameter_values, generate_parameter_combinations, count_parameter_combinations
+from backtester.backtest.walkforward.metrics_calculator import calculate_fitness, BacktestMetrics
+from backtester.config import ConfigManager
+from tests.test_metrics_calculator import create_minimal_metrics
+
+
+def create_test_metrics(**overrides) -> BacktestMetrics:
+    """Create BacktestMetrics with overrides for testing.
+    
+    Args:
+        **overrides: Field values to override from defaults
+        
+    Returns:
+        BacktestMetrics instance with all fields set
+    """
+    base = create_minimal_metrics()
+    for key, value in overrides.items():
+        if hasattr(base, key):
+            setattr(base, key, value)
+    return base
 
 
 class TestPeriodParser(unittest.TestCase):
@@ -216,58 +233,59 @@ class TestMetricsCalculator(unittest.TestCase):
     
     def test_calculate_fitness_net_profit(self):
         """Test net profit fitness calculation."""
-        metrics = BacktestMetrics(
-            net_profit=1000.0,
-            total_return_pct=10.0,
-            sharpe_ratio=1.5,
-            max_drawdown=500.0,
-            profit_factor=2.0,
-            np_avg_dd=2.0,
-            gross_profit=2000.0,
-            gross_loss=1000.0,
-            num_trades=10,
-            num_winning_trades=7,
-            num_losing_trades=3,
-            avg_drawdown=200.0,
-            win_rate_pct=70.0,
-            percent_trades_profitable=70.0,
-            percent_trades_unprofitable=30.0,
-            avg_trade=100.0,
-            avg_profitable_trade=285.71,
-            avg_unprofitable_trade=-333.33,
-            largest_winning_trade=500.0,
-            largest_losing_trade=-200.0,
-            max_consecutive_wins=3,
-            max_consecutive_losses=2,
-            total_calendar_days=365,
-            total_trading_days=252,
-            days_profitable=150,
-            days_unprofitable=102,
-            percent_days_profitable=59.52,
-            percent_days_unprofitable=40.48,
-            max_drawdown_pct=5.0,
-            max_run_up=1500.0,
-            recovery_factor=2.0,
-            np_max_dd=2.0,
-            r_squared=0.95,
-            sortino_ratio=2.0,
-            monte_carlo_score=75.0,
-            rina_index=10.0,
-            tradestation_index=15.0,
-            np_x_r2=950.0,
-            np_x_pf=2000.0,
-            annualized_net_profit=1000.0,
-            annualized_return_avg_dd=5.0,
-            percent_time_in_market=60.0,
-            walkforward_efficiency=0.0
-        )
+        # Use create_minimal_metrics and override specific fields
+        metrics = create_minimal_metrics()
+        # Override fields needed for this test
+        metrics.net_profit = 1000.0
+        metrics.total_return_pct = 10.0
+        metrics.sharpe_ratio = 1.5
+        metrics.max_drawdown = 500.0
+        metrics.profit_factor = 2.0
+        metrics.np_avg_dd = 2.0
+        metrics.gross_profit = 2000.0
+        metrics.gross_loss = 1000.0
+        metrics.num_trades = 10
+        metrics.num_winning_trades = 7
+        metrics.num_losing_trades = 3
+        metrics.avg_drawdown = 200.0
+        metrics.win_rate_pct = 70.0
+        metrics.percent_trades_profitable = 70.0
+        metrics.percent_trades_unprofitable = 30.0
+        metrics.avg_trade = 100.0
+        metrics.avg_profitable_trade = 285.71
+        metrics.avg_unprofitable_trade = -333.33
+        metrics.largest_winning_trade = 500.0
+        metrics.largest_losing_trade = -200.0
+        metrics.max_consecutive_wins = 3
+        metrics.max_consecutive_losses = 2
+        metrics.total_calendar_days = 365
+        metrics.total_trading_days = 252
+        metrics.days_profitable = 150
+        metrics.days_unprofitable = 102
+        metrics.percent_days_profitable = 59.52
+        metrics.percent_days_unprofitable = 40.48
+        metrics.max_drawdown_pct = 5.0
+        metrics.max_run_up = 1500.0
+        metrics.recovery_factor = 2.0
+        metrics.np_max_dd = 2.0
+        metrics.r_squared = 0.95
+        metrics.sortino_ratio = 2.0
+        metrics.monte_carlo_score = 75.0
+        metrics.rina_index = 10.0
+        metrics.tradestation_index = 15.0
+        metrics.np_x_r2 = 950.0
+        metrics.np_x_pf = 2000.0
+        metrics.annualized_net_profit = 1000.0
+        metrics.annualized_return_avg_dd = 5.0
+        metrics.percent_time_in_market = 60.0
+        metrics.walkforward_efficiency = 0.0
         
         fitness = calculate_fitness(metrics, 'net_profit')
         self.assertEqual(fitness, 1000.0)
     
     def test_calculate_fitness_sharpe_ratio(self):
         """Test Sharpe ratio fitness calculation."""
-        metrics = BacktestMetrics(
+        metrics = create_test_metrics(
             net_profit=1000.0,
             total_return_pct=10.0,
             sharpe_ratio=1.5,
@@ -318,7 +336,7 @@ class TestMetricsCalculator(unittest.TestCase):
     
     def test_calculate_fitness_max_dd(self):
         """Test max drawdown fitness (negated)."""
-        metrics = BacktestMetrics(
+        metrics = create_test_metrics(
             net_profit=1000.0,
             total_return_pct=10.0,
             sharpe_ratio=1.5,
@@ -370,7 +388,7 @@ class TestMetricsCalculator(unittest.TestCase):
     
     def test_calculate_fitness_profit_factor(self):
         """Test profit factor fitness."""
-        metrics = BacktestMetrics(
+        metrics = create_test_metrics(
             net_profit=1000.0,
             total_return_pct=10.0,
             sharpe_ratio=1.5,
@@ -421,7 +439,7 @@ class TestMetricsCalculator(unittest.TestCase):
     
     def test_calculate_fitness_np_avg_dd(self):
         """Test NP/AvgDD fitness (mentor's preferred metric)."""
-        metrics = BacktestMetrics(
+        metrics = create_test_metrics(
             net_profit=1000.0,
             total_return_pct=10.0,
             sharpe_ratio=1.5,
@@ -472,7 +490,7 @@ class TestMetricsCalculator(unittest.TestCase):
     
     def test_invalid_fitness_function(self):
         """Test invalid fitness function name."""
-        metrics = BacktestMetrics(
+        metrics = create_test_metrics(
             net_profit=1000.0,
             total_return_pct=10.0,
             sharpe_ratio=1.5,
@@ -584,8 +602,8 @@ class TestWalkForwardResults(unittest.TestCase):
     
     def test_results_calculation(self):
         """Test results aggregate calculation."""
-        from backtest.walkforward.results import WalkForwardResults, WalkForwardWindowResult
-        from backtest.walkforward.metrics_calculator import BacktestMetrics
+        from backtester.backtest.walkforward.results import WalkForwardResults, WalkForwardWindowResult
+        from backtester.backtest.walkforward.metrics_calculator import BacktestMetrics
         
         # Create sample results
         results = WalkForwardResults(
@@ -603,7 +621,7 @@ class TestWalkForwardResults(unittest.TestCase):
             out_sample_start='2021-01-01',
             out_sample_end='2021-06-30',
             best_parameters={'fast_period': 20, 'slow_period': 50},
-            in_sample_metrics=BacktestMetrics(
+            in_sample_metrics=create_test_metrics(
                 net_profit=1000.0,
                 total_return_pct=10.0,
                 sharpe_ratio=1.0,
@@ -617,7 +635,7 @@ class TestWalkForwardResults(unittest.TestCase):
                 num_losing_trades=3,
                 avg_drawdown=500.0
             ),
-            out_sample_metrics=BacktestMetrics(
+            out_sample_metrics=create_test_metrics(
                 net_profit=800.0,
                 total_return_pct=8.0,
                 sharpe_ratio=0.9,

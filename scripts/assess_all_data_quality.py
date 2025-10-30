@@ -9,13 +9,13 @@ import sys
 from pathlib import Path
 
 # Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from services.quality_runner import run_full_assessment
+from backtester.services.quality_runner import run_full_assessment
 import logging
 
 # Setup logging
-LOG_DIR = Path('logs')
+LOG_DIR = Path('artifacts/logs')
 LOG_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(

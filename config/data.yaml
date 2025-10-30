@@ -5,6 +5,6 @@ data:
   
   # Cache settings
   cache_enabled: true
-  cache_directory: data/cache
+  cache_directory: data
   historical_start_date: "2017-01-01"  # Default start date for data collection (configurable)
 

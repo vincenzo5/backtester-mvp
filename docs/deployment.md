@@ -94,7 +94,7 @@ docker-compose ps
 
 All data is persisted in host directories:
 
-- `./data/cache` - Cached OHLCV data
+- `./data` - Cached OHLCV data (CSV files)
 - `./config` - Configuration files
 - `./logs` - Application logs
 - `./reports` - Backtest reports
@@ -181,7 +181,7 @@ docker-compose logs --tail=100 scheduler
 
 ```bash
 # View manifest
-cat data/cache/.cache_manifest.json | jq
+cat data/.cache_manifest.json | jq
 
 # Or in Python
 python -c "from data.cache_manager import load_manifest; import json; print(json.dumps(load_manifest(), indent=2))"
@@ -238,7 +238,7 @@ If cache files become corrupted:
 
 ```bash
 # Delete specific market cache
-rm data/cache/BTC_USD_1h.csv
+rm data/BTC_USD_1h.csv
 
 # Re-fetch
 python scripts/refetch_market.py BTC/USD 1h
@@ -249,7 +249,7 @@ python scripts/refetch_market.py BTC/USD 1h
 Monitor cache directory size:
 
 ```bash
-du -sh data/cache/
+du -sh data/
 ```
 
 Cache files grow over time. For 85 markets × 8 timeframes:

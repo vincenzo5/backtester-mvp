@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.market_liveliness import (
+from backtester.data.market_liveliness import (
     check_market_on_exchange, check_all_exchanges,
     check_market_live, is_liveliness_stale
 )

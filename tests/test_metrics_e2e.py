@@ -10,13 +10,13 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-from backtest.engine import run_backtest
-from backtest.walkforward.metrics_calculator import calculate_metrics, BacktestMetrics
-from backtest.walkforward.optimizer import WindowOptimizer
-from backtest.walkforward.runner import WalkForwardRunner
-from backtest.walkforward.results import WalkForwardResults, WalkForwardWindowResult
-from config import ConfigManager
-from strategies.sma_cross import SMACrossStrategy
+from backtester.backtest.engine import run_backtest
+from backtester.backtest.walkforward.metrics_calculator import calculate_metrics, BacktestMetrics
+from backtester.backtest.walkforward.optimizer import WindowOptimizer
+from backtester.backtest.walkforward.runner import WalkForwardRunner
+from backtester.backtest.walkforward.results import WalkForwardResults, WalkForwardWindowResult
+from backtester.config import ConfigManager
+from backtester.strategies.sma_cross import SMACrossStrategy
 
 
 class TestEndToEndMetrics(unittest.TestCase):
@@ -44,7 +44,7 @@ class TestEndToEndMetrics(unittest.TestCase):
     
     def test_backtest_returns_metrics_correctly(self):
         """Test that run_backtest with return_metrics=True works correctly."""
-        result_dict, cerebro, strategy_instance = run_backtest(
+        result_dict, cerebro, strategy_instance, metrics = run_backtest(
             self.config,
             self.test_data,
             SMACrossStrategy,
@@ -54,9 +54,10 @@ class TestEndToEndMetrics(unittest.TestCase):
         
         # Verify return structure
         self.assertIsInstance(result_dict, dict)
-        self.assertIn('final_value', result_dict)
+        self.assertIn('metrics', result_dict)
         self.assertIsNotNone(cerebro)
         self.assertIsNotNone(strategy_instance)
+        self.assertIsInstance(metrics, BacktestMetrics)
         
         # Verify cerebro has analyzers
         self.assertTrue(hasattr(cerebro, 'analyzers'))
@@ -67,7 +68,7 @@ class TestEndToEndMetrics(unittest.TestCase):
     
     def test_calculate_metrics_from_real_backtest(self):
         """Test calculate_metrics can process real backtest results."""
-        result_dict, cerebro, strategy_instance = run_backtest(
+        result_dict, cerebro, strategy_instance, metrics = run_backtest(
             self.config,
             self.test_data,
             SMACrossStrategy,
@@ -75,20 +76,7 @@ class TestEndToEndMetrics(unittest.TestCase):
             return_metrics=True
         )
         
-        initial_capital = self.config.get_initial_capital()
-        start_date = self.test_data.index[0].to_pydatetime()
-        end_date = self.test_data.index[-1].to_pydatetime()
-        
-        metrics = calculate_metrics(
-            cerebro,
-            strategy_instance,
-            initial_capital,
-            equity_curve=None,
-            start_date=start_date,
-            end_date=end_date
-        )
-        
-        # Verify all key metrics are populated
+        # Verify metrics are returned directly from run_backtest
         self.assertIsInstance(metrics, BacktestMetrics)
         self.assertIsNotNone(metrics.net_profit)
         self.assertIsNotNone(metrics.total_return_pct)
@@ -178,97 +166,98 @@ class TestEndToEndMetrics(unittest.TestCase):
     def test_walkforward_results_serialization(self):
         """Test that WalkForwardResults can serialize all metrics."""
         # Create a window result with full metrics
-        is_metrics = BacktestMetrics(
-            net_profit=1000.0,
-            total_return_pct=10.0,
-            sharpe_ratio=1.5,
-            max_drawdown=500.0,
-            profit_factor=2.0,
-            np_avg_dd=2.0,
-            gross_profit=2000.0,
-            gross_loss=1000.0,
-            num_trades=10,
-            num_winning_trades=7,
-            num_losing_trades=3,
-            avg_drawdown=200.0,
-            win_rate_pct=70.0,
-            percent_trades_profitable=70.0,
-            percent_trades_unprofitable=30.0,
-            avg_trade=100.0,
-            avg_profitable_trade=285.71,
-            avg_unprofitable_trade=-333.33,
-            largest_winning_trade=500.0,
-            largest_losing_trade=-200.0,
-            max_consecutive_wins=3,
-            max_consecutive_losses=2,
-            total_calendar_days=365,
-            total_trading_days=252,
-            days_profitable=150,
-            days_unprofitable=102,
-            percent_days_profitable=59.52,
-            percent_days_unprofitable=40.48,
-            max_drawdown_pct=5.0,
-            max_run_up=1500.0,
-            recovery_factor=2.0,
-            np_max_dd=2.0,
-            r_squared=0.95,
-            sortino_ratio=2.0,
-            monte_carlo_score=75.0,
-            rina_index=10.0,
-            tradestation_index=15.0,
-            np_x_r2=950.0,
-            np_x_pf=2000.0,
-            annualized_net_profit=1000.0,
-            annualized_return_avg_dd=5.0,
-            percent_time_in_market=60.0,
-            walkforward_efficiency=0.0
-        )
+        from tests.test_metrics_calculator import create_minimal_metrics
+        is_metrics = create_minimal_metrics()
+        # Override fields with test values
+        is_metrics.net_profit = 1000.0
+        is_metrics.total_return_pct = 10.0
+        is_metrics.sharpe_ratio = 1.5
+        is_metrics.max_drawdown = 500.0
+        is_metrics.profit_factor = 2.0
+        is_metrics.np_avg_dd = 2.0
+        is_metrics.gross_profit = 2000.0
+        is_metrics.gross_loss = 1000.0
+        is_metrics.num_trades = 10
+        is_metrics.num_winning_trades = 7
+        is_metrics.num_losing_trades = 3
+        is_metrics.avg_drawdown = 200.0
+        is_metrics.win_rate_pct = 70.0
+        is_metrics.percent_trades_profitable = 70.0
+        is_metrics.percent_trades_unprofitable = 30.0
+        is_metrics.avg_trade = 100.0
+        is_metrics.avg_profitable_trade = 285.71
+        is_metrics.avg_unprofitable_trade = -333.33
+        is_metrics.largest_winning_trade = 500.0
+        is_metrics.largest_losing_trade = -200.0
+        is_metrics.max_consecutive_wins = 3
+        is_metrics.max_consecutive_losses = 2
+        is_metrics.total_calendar_days = 365
+        is_metrics.total_trading_days = 252
+        is_metrics.days_profitable = 150
+        is_metrics.days_unprofitable = 102
+        is_metrics.percent_days_profitable = 59.52
+        is_metrics.percent_days_unprofitable = 40.48
+        is_metrics.max_drawdown_pct = 5.0
+        is_metrics.max_run_up = 1500.0
+        is_metrics.recovery_factor = 2.0
+        is_metrics.np_max_dd = 2.0
+        is_metrics.r_squared = 0.95
+        is_metrics.sortino_ratio = 2.0
+        is_metrics.monte_carlo_score = 75.0
+        is_metrics.rina_index = 10.0
+        is_metrics.tradestation_index = 15.0
+        is_metrics.np_x_r2 = 950.0
+        is_metrics.np_x_pf = 2000.0
+        is_metrics.annualized_net_profit = 1000.0
+        is_metrics.annualized_return_avg_dd = 5.0
+        is_metrics.percent_time_in_market = 60.0
+        is_metrics.walkforward_efficiency = 0.0
         
-        oos_metrics = BacktestMetrics(
-            net_profit=800.0,
-            total_return_pct=8.0,
-            sharpe_ratio=0.9,
-            max_drawdown=400.0,
-            profit_factor=1.8,
-            np_avg_dd=1.6,
-            gross_profit=1600.0,
-            gross_loss=800.0,
-            num_trades=8,
-            num_winning_trades=6,
-            num_losing_trades=2,
-            avg_drawdown=500.0,
-            win_rate_pct=75.0,
-            percent_trades_profitable=75.0,
-            percent_trades_unprofitable=25.0,
-            avg_trade=100.0,
-            avg_profitable_trade=266.67,
-            avg_unprofitable_trade=-400.0,
-            largest_winning_trade=400.0,
-            largest_losing_trade=-150.0,
-            max_consecutive_wins=4,
-            max_consecutive_losses=1,
-            total_calendar_days=180,
-            total_trading_days=120,
-            days_profitable=70,
-            days_unprofitable=50,
-            percent_days_profitable=58.33,
-            percent_days_unprofitable=41.67,
-            max_drawdown_pct=4.0,
-            max_run_up=1200.0,
-            recovery_factor=2.0,
-            np_max_dd=2.0,
-            r_squared=0.90,
-            sortino_ratio=1.8,
-            monte_carlo_score=70.0,
-            rina_index=8.0,
-            tradestation_index=12.0,
-            np_x_r2=720.0,
-            np_x_pf=1440.0,
-            annualized_net_profit=1600.0,
-            annualized_return_avg_dd=4.0,
-            percent_time_in_market=50.0,
-            walkforward_efficiency=0.0
-        )
+        oos_metrics = create_minimal_metrics()
+        # Override fields with test values
+        oos_metrics.net_profit = 800.0
+        oos_metrics.total_return_pct = 8.0
+        oos_metrics.sharpe_ratio = 0.9
+        oos_metrics.max_drawdown = 400.0
+        oos_metrics.profit_factor = 1.8
+        oos_metrics.np_avg_dd = 1.6
+        oos_metrics.gross_profit = 1600.0
+        oos_metrics.gross_loss = 800.0
+        oos_metrics.num_trades = 8
+        oos_metrics.num_winning_trades = 6
+        oos_metrics.num_losing_trades = 2
+        oos_metrics.avg_drawdown = 500.0
+        oos_metrics.win_rate_pct = 75.0
+        oos_metrics.percent_trades_profitable = 75.0
+        oos_metrics.percent_trades_unprofitable = 25.0
+        oos_metrics.avg_trade = 100.0
+        oos_metrics.avg_profitable_trade = 266.67
+        oos_metrics.avg_unprofitable_trade = -400.0
+        oos_metrics.largest_winning_trade = 400.0
+        oos_metrics.largest_losing_trade = -150.0
+        oos_metrics.max_consecutive_wins = 4
+        oos_metrics.max_consecutive_losses = 1
+        oos_metrics.total_calendar_days = 180
+        oos_metrics.total_trading_days = 120
+        oos_metrics.days_profitable = 70
+        oos_metrics.days_unprofitable = 50
+        oos_metrics.percent_days_profitable = 58.33
+        oos_metrics.percent_days_unprofitable = 41.67
+        oos_metrics.max_drawdown_pct = 4.0
+        oos_metrics.max_run_up = 1200.0
+        oos_metrics.recovery_factor = 2.0
+        oos_metrics.np_max_dd = 2.0
+        oos_metrics.r_squared = 0.90
+        oos_metrics.sortino_ratio = 1.8
+        oos_metrics.monte_carlo_score = 70.0
+        oos_metrics.rina_index = 8.0
+        oos_metrics.tradestation_index = 12.0
+        oos_metrics.np_x_r2 = 720.0
+        oos_metrics.np_x_pf = 1440.0
+        oos_metrics.annualized_net_profit = 1600.0
+        oos_metrics.annualized_return_avg_dd = 4.0
+        oos_metrics.percent_time_in_market = 50.0
+        oos_metrics.walkforward_efficiency = 0.0
         
         window_result = WalkForwardWindowResult(
             window_index=0,

@@ -11,14 +11,14 @@ import backtrader as bt
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
-from backtest.walkforward.metrics_calculator import (
+from backtester.backtest.walkforward.metrics_calculator import (
     BacktestMetrics,
     calculate_metrics,
     calculate_fitness
 )
-from backtest.engine import run_backtest
-from config import ConfigManager
-from strategies.sma_cross import SMACrossStrategy
+from backtester.backtest.engine import run_backtest
+from backtester.config import ConfigManager
+from backtester.strategies.sma_cross import SMACrossStrategy
 
 
 def create_minimal_metrics() -> BacktestMetrics:
@@ -261,8 +261,8 @@ class TestMetricsCalculationIntegration(unittest.TestCase):
     
     def test_calculate_metrics_with_real_backtest(self):
         """Test that calculate_metrics works with actual backtest."""
-        # Run backtest with return_metrics=True
-        result_dict, cerebro, strategy_instance = run_backtest(
+        # Run backtest with return_metrics=True - now returns metrics directly
+        result_dict, cerebro, strategy_instance, metrics = run_backtest(
             self.config,
             self.test_data,
             SMACrossStrategy,
@@ -270,20 +270,7 @@ class TestMetricsCalculationIntegration(unittest.TestCase):
             return_metrics=True
         )
         
-        # Calculate metrics
-        initial_capital = self.config.get_initial_capital()
-        start_date = self.test_data.index[0].to_pydatetime()
-        end_date = self.test_data.index[-1].to_pydatetime()
-        
-        metrics = calculate_metrics(
-            cerebro,
-            strategy_instance,
-            initial_capital,
-            equity_curve=None,
-            start_date=start_date,
-            end_date=end_date
-        )
-        
+        # Metrics are now returned directly from run_backtest
         # Verify metrics object is created
         self.assertIsInstance(metrics, BacktestMetrics)
         
@@ -298,7 +285,7 @@ class TestMetricsCalculationIntegration(unittest.TestCase):
     
     def test_all_38_metrics_calculated(self):
         """Verify all 38 metrics are calculated (not None/0 without reason)."""
-        result_dict, cerebro, strategy_instance = run_backtest(
+        result_dict, cerebro, strategy_instance, metrics = run_backtest(
             self.config,
             self.test_data,
             SMACrossStrategy,
@@ -306,18 +293,7 @@ class TestMetricsCalculationIntegration(unittest.TestCase):
             return_metrics=True
         )
         
-        initial_capital = self.config.get_initial_capital()
-        start_date = self.test_data.index[0].to_pydatetime()
-        end_date = self.test_data.index[-1].to_pydatetime()
-        
-        metrics = calculate_metrics(
-            cerebro,
-            strategy_instance,
-            initial_capital,
-            equity_curve=None,
-            start_date=start_date,
-            end_date=end_date
-        )
+        # Metrics are now returned directly, no need to recalculate
         
         # Check that all fields exist and have appropriate types
         for field_name, field_info in BacktestMetrics.__dataclass_fields__.items():
@@ -334,7 +310,7 @@ class TestMetricsCalculationIntegration(unittest.TestCase):
     
     def test_analyzers_are_added(self):
         """Test that analyzers are properly added to cerebro."""
-        result_dict, cerebro, strategy_instance = run_backtest(
+        result_dict, cerebro, strategy_instance, metrics = run_backtest(
             self.config,
             self.test_data,
             SMACrossStrategy,
@@ -356,7 +332,7 @@ class TestMetricsCalculationIntegration(unittest.TestCase):
     
     def test_equity_curve_tracking(self):
         """Test that equity curve is properly tracked."""
-        result_dict, cerebro, strategy_instance = run_backtest(
+        result_dict, cerebro, strategy_instance, metrics = run_backtest(
             self.config,
             self.test_data,
             SMACrossStrategy,

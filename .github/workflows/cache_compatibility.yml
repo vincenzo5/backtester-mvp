@@ -3,17 +3,17 @@ name: Cache Compatibility Tests
 on:
   pull_request:
     paths:
-      - 'data/cache_manager.py'
-      - 'data/validator.py'
-      - 'data/updater.py'
-      - 'data/fetcher.py'
+      - 'src/backtester/data/cache_manager.py'
+      - 'src/backtester/data/validator.py'
+      - 'src/backtester/data/updater.py'
+      - 'src/backtester/data/fetcher.py'
   push:
     branches: [main]
     paths:
-      - 'data/cache_manager.py'
-      - 'data/validator.py'
-      - 'data/updater.py'
-      - 'data/fetcher.py'
+      - 'src/backtester/data/cache_manager.py'
+      - 'src/backtester/data/validator.py'
+      - 'src/backtester/data/updater.py'
+      - 'src/backtester/data/fetcher.py'
 
 jobs:
   test:

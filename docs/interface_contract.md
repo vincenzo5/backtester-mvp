@@ -48,7 +48,7 @@ DataFrame with:
 - Symbol '/' replaced with '_'
 - No date ranges in filename (simplified from old format)
 
-**Location:** `data/cache/`
+**Location:** `data/`
 
 ## Cache File Format
 

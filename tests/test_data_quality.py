@@ -17,17 +17,17 @@ import json
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.validator import (
+from backtester.data.validator import (
     validate_ohlcv_integrity, validate_volume, detect_outliers,
     validate_cross_candle_consistency, validate_missing_values,
     validate_chronological_order, detect_gaps
 )
-from data.quality_scorer import (
+from backtester.data.quality_scorer import (
     calculate_component_scores, calculate_composite_score,
     assess_data_quality
 )
-from data.cache_manager import write_cache, read_cache, update_manifest, load_manifest
-from data.quality_metadata import (
+from backtester.data.cache_manager import write_cache, read_cache, update_manifest, load_manifest
+from backtester.data.quality_metadata import (
     save_quality_metadata_entry, load_quality_metadata_entry,
     load_all_quality_metadata, delete_quality_metadata_entry
 )
@@ -233,7 +233,7 @@ class TestEndToEndQualityAssessment(unittest.TestCase):
     def setUp(self):
         """Set up test cache."""
         self.temp_dir = tempfile.mkdtemp()
-        self.original_cache_dir = Path('data/cache')
+        self.original_cache_dir = Path('data')
         
         # Create test cache directory
         test_cache_dir = Path(self.temp_dir) / 'cache'

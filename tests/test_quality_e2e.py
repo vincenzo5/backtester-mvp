@@ -17,14 +17,14 @@ import json
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.cache_manager import write_cache, read_cache, get_manifest_entry
-from data.quality_scorer import assess_data_quality
-from data.quality_metadata import (
+from backtester.data.cache_manager import write_cache, read_cache, get_manifest_entry
+from backtester.data.quality_scorer import assess_data_quality
+from backtester.data.quality_metadata import (
     save_quality_metadata_entry, load_quality_metadata_entry,
     load_all_quality_metadata
 )
-from data.validator import detect_gaps, validate_ohlcv_integrity
-from services.quality_runner import assess_dataset_quality
+from backtester.data.validator import detect_gaps, validate_ohlcv_integrity
+from backtester.services.quality_runner import assess_dataset_quality
 
 
 class TestQualitySystemE2E(unittest.TestCase):

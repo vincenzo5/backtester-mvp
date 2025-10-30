@@ -26,12 +26,12 @@ pip install -r requirements.txt
 
 **Single command startup:**
 ```bash
-./scripts/start.sh
+./scripts/deployment/start.sh
 ```
 
 Or on Windows:
 ```powershell
-.\scripts\start.ps1
+.\scripts\deployment\start.ps1
 ```
 
 This will:
@@ -46,9 +46,9 @@ python main.py  # Run backtests locally for development
 ```
 
 **Manual steps (if preferred):**
-1. Build: `docker-compose build`
-2. Initial fetch: `docker-compose run --rm bulk-fetch`
-3. Start scheduler: `docker-compose up -d scheduler`
+1. Build: `cd deployment && docker-compose build`
+2. Initial fetch: `cd deployment && docker-compose run --rm bulk-fetch`
+3. Start scheduler: `cd deployment && docker-compose up -d scheduler`
 
 ### Manual Installation
 
@@ -59,7 +59,7 @@ python main.py  # Run backtests locally for development
 
 2. Fetch exchange metadata (optional):
    ```bash
-   python scripts/fetch_exchange_info.py
+   python scripts/setup/fetch_exchange_info.py
    ```
    This creates `config/exchange_metadata.yaml` with:
    - Supported timeframes
@@ -68,20 +68,25 @@ python main.py  # Run backtests locally for development
 
 3. **Initial data collection:**
    ```bash
-   python scripts/bulk_fetch.py
+   python scripts/data/bulk_fetch.py
    ```
    This fetches all historical data back to 2017 (or earliest available) for all markets/timeframes.
 
-4. **Setup daily updates** (optional):
+4. **Install package** (required for imports):
    ```bash
-   # Run manually
-   python services/update_runner.py
-   
-   # Or start scheduler daemon
-   python services/scheduler_daemon.py
+   pip install -e .
    ```
 
-5. Run backtests:
+5. **Setup daily updates** (optional):
+   ```bash
+   # Run manually
+   python -m backtester.services.update_runner
+   
+   # Or start scheduler daemon
+   python -m backtester.services.scheduler_daemon
+   ```
+
+6. Run backtests:
    ```bash
    python main.py
    ```
@@ -90,15 +95,28 @@ python main.py  # Run backtests locally for development
 
 ```
 backtester-mvp/
-├── strategies/      # Trading strategies
-├── data/            # Data modules (fetcher, cache_manager, validator, updater)
-├── services/        # Background services (scheduler, update_runner)
-├── scripts/         # Utility scripts (bulk_fetch, refetch_market)
-├── backtest/        # Backtesting engine
-├── config/          # Configuration files
-├── reports/         # Generated reports and charts
-├── logs/            # Application logs
-└── requirements.txt # Dependencies
+├── src/
+│   └── backtester/      # Main package (backtest, cli, config, data, indicators, strategies, services)
+├── tests/               # Test suite
+├── scripts/             # Utility scripts organized by purpose
+│   ├── data/           # Data collection scripts
+│   ├── diagnostics/    # Diagnostic tools
+│   ├── setup/          # Setup/utility scripts
+│   ├── deployment/     # Deployment scripts (start.sh, start.ps1)
+│   └── tests/          # Standalone test scripts
+├── config/             # Configuration files (YAML)
+├── data/               # Data cache and storage
+├── docs/               # Documentation
+├── artifacts/          # Runtime-generated files
+│   ├── logs/          # Application logs
+│   ├── reports/        # Generated reports and charts
+│   └── performance/    # Performance metrics
+├── deployment/          # Docker configuration
+│   ├── Dockerfile
+│   └── docker-compose.yml
+├── main.py             # Entry point
+├── pyproject.toml      # Modern Python packaging config
+└── requirements.txt    # Dependencies (legacy, use pyproject.toml)
 ```
 
 ## Data Collection

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.cache_manager import read_cache, write_cache, get_cache_path, delete_cache
+from backtester.data.cache_manager import read_cache, write_cache, get_cache_path, delete_cache
 
 
 @pytest.fixture

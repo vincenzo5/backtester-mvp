@@ -14,9 +14,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 
-from config import ConfigManager
-from backtest.runner import BacktestRunner
-from strategies.sma_cross import SMACrossStrategy
+from backtester.config import ConfigManager
+from backtester.backtest.runner import BacktestRunner
+from backtester.strategies.sma_cross import SMACrossStrategy
 
 
 class TestWalkForwardEndToEnd(unittest.TestCase):
@@ -27,7 +27,7 @@ class TestWalkForwardEndToEnd(unittest.TestCase):
         # Create temporary directories
         self.temp_dir = tempfile.mkdtemp()
         self.config_dir = os.path.join(self.temp_dir, 'config')
-        self.cache_dir = os.path.join(self.temp_dir, 'data', 'cache')
+        self.cache_dir = os.path.join(self.temp_dir, 'data')
         os.makedirs(self.config_dir)
         os.makedirs(self.cache_dir)
         
@@ -221,7 +221,7 @@ class TestWalkForwardEndToEnd(unittest.TestCase):
     
     def test_walkforward_window_generation(self):
         """Test that windows are generated correctly for real data."""
-        from backtest.walkforward.window_generator import generate_windows_from_period
+        from backtester.backtest.walkforward.window_generator import generate_windows_from_period
         
         config = ConfigManager(self.config_path, self.metadata_path)
         
@@ -261,13 +261,13 @@ class TestWalkForwardEndToEnd(unittest.TestCase):
     
     def test_walkforward_parameter_optimization(self):
         """Test parameter optimization on actual data."""
-        from backtest.walkforward.optimizer import WindowOptimizer
-        from backtest.walkforward.param_grid import generate_parameter_combinations
+        from backtester.backtest.walkforward.optimizer import WindowOptimizer
+        from backtester.backtest.walkforward.param_grid import generate_parameter_combinations
         
         config = ConfigManager(self.config_path, self.metadata_path)
         
         # Get first window
-        from backtest.walkforward.window_generator import generate_windows_from_period
+        from backtester.backtest.walkforward.window_generator import generate_windows_from_period
         start_date = pd.to_datetime(config.get_start_date())
         end_date = pd.to_datetime(config.get_end_date())
         windows = generate_windows_from_period(start_date, end_date, '3M/1M', self.test_data)

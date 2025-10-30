@@ -22,6 +22,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+src/**/__pycache__/
 
 # IDE
 .vscode/
@@ -36,18 +37,13 @@ data/raw/*
 !data/cache/.gitkeep
 !data/raw/.gitkeep
 
-# Reports
-reports/*
-!reports/.gitkeep
-
-# Performance Metrics (runtime-generated, machine-specific)
-performance/*.jsonl
-performance/*.json
-!performance/.gitkeep
-
-# Logs (runtime-generated)
-logs/*.log
-logs/*.log.*
+# Artifacts (runtime-generated files)
+artifacts/logs/*
+artifacts/reports/*
+artifacts/performance/*
+!artifacts/logs/.gitkeep
+!artifacts/reports/.gitkeep
+!artifacts/performance/.gitkeep
 
 # Environment
 .env

@@ -1,0 +1,11 @@
+{
+  "BAND/USD_30m": {
+    "symbol": "BAND/USD",
+    "timeframe": "30m",
+    "first_date": "2025-10-21",
+    "last_date": "2025-10-21",
+    "candle_count": 1,
+    "last_updated": "2025-10-29T23:23:17.348340Z",
+    "source_exchange": "okx"
+  }
+}

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Scheduler service - runs continuously and updates data daily
+  scheduler:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: data-scheduler
+    command: python -m backtester.services.scheduler_daemon
+    restart: unless-stopped
+    volumes:
+      - ../data:/app/data           # Persist cached data
+      - ../config:/app/config                   # Config files (read/write)
+      - ../artifacts/logs:/app/artifacts/logs                       # Log files
+      - ../artifacts/performance:/app/artifacts/performance         # Performance metrics
+    environment:
+      - TZ=${TZ:-UTC}
+      - UPDATE_HOUR=${UPDATE_HOUR:-1}          # Default 1 AM UTC
+      - UPDATE_MINUTE=${UPDATE_MINUTE:-0}
+    depends_on: []
+    networks:
+      - backtester-network
+
+  # Backtest service - removed (develop separately)
+  # Run backtests directly: python main.py
+  # Uses same cache from data/ directory
+
+  # Bulk fetch service - run once for initial data collection (uses multi-exchange discovery)
+  bulk-fetch:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: bulk-fetcher
+    command: python scripts/data/bulk_fetch_data.py
+    volumes:
+      - ../data:/app/data
+      - ../config:/app/config
+      - ../artifacts/logs:/app/artifacts/logs
+      - ../artifacts/performance:/app/artifacts/performance
+    profiles:
+      - tools  # Don't start automatically
+    networks:
+      - backtester-network
+
+networks:
+  backtester-network:
+    driver: bridge
+

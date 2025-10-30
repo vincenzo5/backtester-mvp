@@ -185,7 +185,7 @@ See `config/config.yaml` for scheduling configuration.
 ## File Locations
 
 - **Quality Metadata**: `data/quality_metadata.json` (detailed scores)
-- **Cache Manifest**: `data/cache/.cache_manifest.json` (lean info)
+- **Cache Manifest**: `data/.cache_manifest.json` (lean info)
 - **Assessment Logs**: `logs/quality_assessment.log`
 - **Gap Filling Logs**: `logs/gap_filling.log`
 

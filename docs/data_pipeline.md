@@ -71,7 +71,7 @@ Update manifest
 
 **New format (simplified):**
 ```
-data/cache/
+data/
 ├── BTC_USD_1h.csv
 ├── ETH_USD_1d.csv
 └── .cache_manifest.json
@@ -79,7 +79,7 @@ data/cache/
 
 **Old format (legacy):**
 ```
-data/cache/
+data/
 └── BTC_USD_1h_2017-01-01_2025-10-27.csv  # Deprecated
 ```
 

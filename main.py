@@ -8,12 +8,12 @@ Quick test: python main.py --quick
 import sys
 import time
 
-from cli.parser import parse_arguments
-from cli.output import ConsoleOutput
-from config import ConfigManager
-from backtest.runner import BacktestRunner
-from backtest.metrics import save_results_csv, save_performance_metrics
-from strategies import get_strategy_class
+from backtester.cli.parser import parse_arguments
+from backtester.cli.output import ConsoleOutput
+from backtester.config import ConfigManager
+from backtester.backtest.runner import BacktestRunner
+from backtester.backtest.metrics import save_results_csv, save_performance_metrics
+from backtester.strategies import get_strategy_class
 
 
 def validate_dependencies():
@@ -59,7 +59,7 @@ def main():
     # Check if walk-forward mode is enabled
     if config.is_walkforward_enabled():
         # Run walk-forward optimization
-        from backtest.runner import BacktestRunner
+        from backtester.backtest.runner import BacktestRunner
         runner = BacktestRunner(config, output)
         wf_results = runner.run_walkforward_analysis(strategy_class)
         
