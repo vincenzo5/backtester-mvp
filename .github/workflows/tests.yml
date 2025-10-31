@@ -1,6 +1,9 @@
 name: Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches-ignore: [main]  # Skip main - deploy.yml handles testing on main
+  pull_request:
 
 jobs:
   test:
