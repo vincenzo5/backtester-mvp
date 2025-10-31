@@ -1,0 +1,26 @@
+---
+description: Code organization and naming conventions
+globs: src/**/*.py, scripts/**/*.py
+alwaysApply: true
+---
+
+# Code Organization Standards (Priority 2)
+
+## Directory Structure
+- Source code in `src/backtester/` package
+- Tests in `tests/` directory (mirroring src structure)
+- Utility scripts in `scripts/` organized by purpose (data/, diagnostics/, setup/, deployment/, tests/)
+- Configuration in `config/` as YAML files
+- Documentation in `docs/` directory
+- Runtime artifacts in `artifacts/logs/`, `artifacts/reports/`, `artifacts/performance/`
+
+## Import Standards
+- Use absolute imports from `backtester.` package
+- Import structure: standard libs → third-party → local imports
+
+## Naming Conventions
+- Python files: snake_case (`cache_manager.py`, `gap_filler.py`)
+- Config files: snake_case with `.yaml` extension
+- Class names: PascalCase (`BaseStrategy`, `ConfigManager`)
+- Function/method names: snake_case
+- Constants: UPPER_SNAKE_CASE

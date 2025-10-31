@@ -192,14 +192,14 @@ class TestQualityMetadata(unittest.TestCase):
             self.backup = None
         
         # Modify Path to use temp dir (for testing only)
-        import data.quality_metadata as qm_module
+        from backtester.data import quality_metadata as qm_module
         self.original_quality_file = qm_module.QUALITY_METADATA_FILE
         qm_module.QUALITY_METADATA_FILE = Path(self.temp_dir) / 'quality_metadata.json'
     
     def tearDown(self):
         """Clean up temporary directory."""
         shutil.rmtree(self.temp_dir)
-        import data.quality_metadata as qm_module
+        from backtester.data import quality_metadata as qm_module
         qm_module.QUALITY_METADATA_FILE = self.original_quality_file
         
         # Restore backup
@@ -240,7 +240,7 @@ class TestEndToEndQualityAssessment(unittest.TestCase):
         test_cache_dir.mkdir(parents=True)
         
         # Temporarily modify cache path (for testing)
-        import data.cache_manager as cm_module
+        from backtester.data import cache_manager as cm_module
         self.original_cache = cm_module.CACHE_DIR
         self.original_manifest = cm_module.MANIFEST_FILE
         cm_module.CACHE_DIR = test_cache_dir
@@ -251,7 +251,7 @@ class TestEndToEndQualityAssessment(unittest.TestCase):
         shutil.rmtree(self.temp_dir)
         
         # Restore original cache path
-        import data.cache_manager as cm_module
+        from backtester.data import cache_manager as cm_module
         cm_module.CACHE_DIR = self.original_cache
         cm_module.MANIFEST_FILE = self.original_manifest
     
@@ -287,7 +287,7 @@ class TestEndToEndQualityAssessment(unittest.TestCase):
         self.assertGreater(result['composite'], 0)
         
         # Verify manifest was updated
-        from data.cache_manager import get_manifest_entry
+        from backtester.data.cache_manager import get_manifest_entry
         manifest_entry = get_manifest_entry('BTC/USD', '1h')
         self.assertIsNotNone(manifest_entry)
         if 'quality_grade' in manifest_entry:

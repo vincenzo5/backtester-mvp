@@ -3,6 +3,7 @@ Tests for walk-forward optimization system.
 """
 
 import unittest
+import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -13,7 +14,7 @@ from backtester.backtest.walkforward.window_generator import generate_windows, g
 from backtester.backtest.walkforward.param_grid import generate_parameter_values, generate_parameter_combinations, count_parameter_combinations
 from backtester.backtest.walkforward.metrics_calculator import calculate_fitness, BacktestMetrics
 from backtester.config import ConfigManager
-from tests.test_metrics_calculator import create_minimal_metrics
+from tests.unit.test_metrics_calculator import create_minimal_metrics
 
 
 def create_test_metrics(**overrides) -> BacktestMetrics:
@@ -540,6 +541,8 @@ class TestMetricsCalculator(unittest.TestCase):
             calculate_fitness(metrics, 'invalid_function')
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 class TestWalkForwardIntegration(unittest.TestCase):
     """Integration tests for walk-forward optimization."""
     

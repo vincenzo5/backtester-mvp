@@ -5,6 +5,7 @@ Tests all 38 metrics, edge cases, fitness functions, and integration.
 """
 
 import unittest
+import pytest
 import pandas as pd
 import numpy as np
 import backtrader as bt
@@ -75,6 +76,7 @@ def create_minimal_metrics() -> BacktestMetrics:
     )
 
 
+@pytest.mark.unit
 class TestBacktestMetrics(unittest.TestCase):
     """Test BacktestMetrics dataclass structure."""
     
@@ -141,6 +143,7 @@ class TestBacktestMetrics(unittest.TestCase):
         self.assertEqual(metrics.win_rate_pct, 70.0)
 
 
+@pytest.mark.unit
 class TestFitnessFunctions(unittest.TestCase):
     """Test all MultiWalk fitness functions."""
     
@@ -234,6 +237,7 @@ class TestFitnessFunctions(unittest.TestCase):
         self.assertIn('Unknown fitness function', str(context.exception))
 
 
+@pytest.mark.integration
 class TestMetricsCalculationIntegration(unittest.TestCase):
     """Integration tests for calculate_metrics with real backtest."""
     
@@ -355,6 +359,7 @@ class TestMetricsCalculationIntegration(unittest.TestCase):
             self.assertGreater(entry['value'], 0)
 
 
+@pytest.mark.unit
 class TestEdgeCases(unittest.TestCase):
     """Test edge cases for metrics calculation."""
     
@@ -505,6 +510,7 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(metrics.profit_factor, 0.0)  # No gross profit
 
 
+@pytest.mark.unit
 class TestHelperFunctions(unittest.TestCase):
     """Test helper functions used in metrics calculation."""
     

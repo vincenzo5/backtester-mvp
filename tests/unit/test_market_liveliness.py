@@ -19,7 +19,7 @@ from backtester.data.market_liveliness import (
 class TestMarketLiveliness(unittest.TestCase):
     """Test market liveliness functions."""
     
-    @patch('data.market_liveliness.create_exchange')
+    @patch('backtester.data.market_liveliness.create_exchange')
     def test_check_market_on_exchange_success(self, mock_create_exchange):
         """Test successful market check."""
         # Mock exchange
@@ -39,7 +39,7 @@ class TestMarketLiveliness(unittest.TestCase):
         self.assertTrue(result['exists'])
         self.assertEqual(result['exchange_id'], 'coinbase')
     
-    @patch('data.market_liveliness.create_exchange')
+    @patch('backtester.data.market_liveliness.create_exchange')
     def test_check_market_on_exchange_not_found(self, mock_create_exchange):
         """Test market not found."""
         mock_exchange = Mock()
@@ -68,7 +68,7 @@ class TestMarketLiveliness(unittest.TestCase):
         stale_date = stale_dt.replace(tzinfo=None).isoformat() + 'Z'
         self.assertTrue(is_liveliness_stale(stale_date, cache_days=30))
     
-    @patch('data.market_liveliness.create_exchange')
+    @patch('backtester.data.market_liveliness.create_exchange')
     def test_check_all_exchanges_success(self, mock_create_exchange):
         """Test checking all exchanges with success."""
         # Mock first exchange has market

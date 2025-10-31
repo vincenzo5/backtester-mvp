@@ -166,7 +166,7 @@ class TestEndToEndMetrics(unittest.TestCase):
     def test_walkforward_results_serialization(self):
         """Test that WalkForwardResults can serialize all metrics."""
         # Create a window result with full metrics
-        from tests.test_metrics_calculator import create_minimal_metrics
+        from tests.unit.test_metrics_calculator import create_minimal_metrics
         is_metrics = create_minimal_metrics()
         # Override fields with test values
         is_metrics.net_profit = 1000.0

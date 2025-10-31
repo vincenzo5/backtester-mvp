@@ -1,0 +1,270 @@
+---
+description: Enforce comprehensive testing structure and standards for all new features
+globs: tests/**/*.py, src/**/*.py
+alwaysApply: true
+---
+
+# Testing Standards (MANDATORY)
+
+When adding ANY new feature, you MUST create tests that follow this structure.
+
+## Test Category Hierarchy (Choose Appropriate Level)
+
+### 1. Smoke Tests (`tests/smoke/`) - ALWAYS CREATE FIRST
+**Purpose:** Verify components can be instantiated and basic operations work
+**When:** For every new class, module, or function
+**Pattern:** Test imports, initialization, basic getters/setters
+**Mark:** `@pytest.mark.smoke`
+
+**Examples:** `test_component_init.py`, `test_imports.py`, `test_config_loading.py`
+
+**Requirements:**
+- Test that module can be imported without errors
+- Test that classes can be instantiated with valid parameters
+- Test basic property access/method calls
+- MUST run quickly (< 1 second per test)
+
+### 2. Unit Tests (`tests/unit/`) - CREATE FOR ALL COMPONENTS
+**Purpose:** Test isolated components/functions in isolation
+**When:** For every function, method, or class with logic
+**Pattern:** Mock dependencies, test single component
+**Mark:** `@pytest.mark.unit`
+
+**Examples:** `test_cache_manager.py`, `test_strategies.py`, `test_indicators.py`
+
+**Requirements:**
+- One test file per source module (mirror structure: `src/backtester/data/cache_manager.py` → `tests/unit/test_cache_manager.py`)
+- Use `unittest.TestCase` classes
+- Use fixtures from `tests/conftest.py` (sample_ohlcv_data, temp_config_dir, config_manager, etc.)
+- Test happy path AND edge cases (empty data, None values, invalid params)
+- Mock external dependencies (APIs, file I/O when testing logic)
+- Clean up resources in `tearDown()`
+
+### 3. Integration Tests (`tests/integration/`) - CREATE FOR WORKFLOWS
+**Purpose:** Test interactions between multiple components
+**When:** For workflows (load → validate → access, fetch → cache → read)
+**Pattern:** Test component chains without full system
+**Mark:** `@pytest.mark.integration`
+
+**Examples:** `test_config_integration.py`, `test_data_pipeline.py`, `test_engine_integration.py`
+
+**Requirements:**
+- Test complete workflows (e.g., ConfigLoader → ConfigValidator → ConfigAccessor)
+- Use real component instances (not mocks)
+- Test data flows between components
+- Verify side effects (file writes, cache updates, etc.)
+
+### 4. End-to-End Tests (`tests/e2e/`) - CREATE FOR USER-FACING FEATURES
+**Purpose:** Test complete user workflows with real data
+**When:** For major features (full backtest, walk-forward, data quality assessment)
+**Pattern:** Use real cached data, full system setup
+**Mark:** `@pytest.mark.e2e` and `@pytest.mark.requires_data` if needs cached data
+
+**Examples:** `test_full_backtest_e2e.py`, `test_walkforward_e2e.py`, `test_quality_e2e.py`
+
+**Requirements:**
+- Test complete user workflows from start to finish
+- Can use real cached data (with skip if unavailable)
+- Verify final outputs match expected formats
+- Test realistic scenarios (not just happy path)
+
+### 5. System Tests (`tests/system/`) - CREATE FOR SYSTEM-LEVEL FEATURES
+**Purpose:** Test complete system workflows with all components
+**When:** For system-level features (parallel execution, error handling, complete workflows)
+**Pattern:** Full system setup, test error recovery, resource management
+**Mark:** `@pytest.mark.system`
+
+**Examples:** `test_backtest_workflow.py`, `test_parallel_execution.py`, `test_error_handling.py`
+
+**Requirements:**
+- Test complete system: config → data → processing → results
+- Test error handling and recovery
+- Test resource cleanup (temporary files, connections)
+- Test performance characteristics
+
+## Test File Structure Requirements
+
+Every test file MUST follow this structure:
+
+```python
+"""
+[Category] tests for [feature/module].
+
+[Brief description of what is tested].
+"""
+
+import unittest
+import pytest
+# ... other imports ...
+
+# Use fixtures from conftest.py when available
+from tests.conftest import sample_ohlcv_data, config_manager, temp_config_dir
+
+# Import components being tested
+from backtester.[module] import Component
+
+
+@pytest.mark.[category]  # smoke, unit, integration, e2e, or system
+class TestComponentName(unittest.TestCase):
+    """Test [component] functionality."""
+    
+    def setUp(self):
+        """Set up test environment."""
+        # Initialize test fixtures
+        # Create temporary directories/files
+        # Set up test data
+    
+    def tearDown(self):
+        """Clean up test environment."""
+        # Remove temporary files/directories
+        # Reset any global state
+    
+    def test_feature_name(self):
+        """Test [specific feature] works correctly."""
+        # Arrange: Set up test data
+        # Act: Execute code under test
+        # Assert: Verify results
+        pass
+    
+    def test_edge_case(self):
+        """Test [edge case] is handled correctly."""
+        # Test edge cases: None, empty data, invalid params
+        pass
+```
+
+## Test Naming Conventions
+
+- Test files: `test_<module_name>.py` (e.g., `test_cache_manager.py`)
+- Test classes: `Test<ComponentName>` (e.g., `TestCacheManager`)
+- Test methods: `test_<feature>_<expected_behavior>` (e.g., `test_read_cache_returns_dataframe`)
+- Use descriptive names that explain what is tested
+
+## Test Coverage Requirements
+
+For every new feature, create tests at these levels:
+
+| Feature Type | Required Test Levels |
+|--------------|---------------------|
+| New function/method | Unit test |
+| New class/module | Smoke test + Unit tests |
+| New workflow | Unit tests + Integration test |
+| New user-facing feature | All levels (Smoke → Unit → Integration → E2E) |
+| New system feature | All levels + System test |
+| Bug fix | Unit test that reproduces bug + fix verification |
+
+## Test Fixtures and Utilities
+
+ALWAYS use fixtures from `tests/conftest.py` when available:
+- `sample_ohlcv_data(num_candles, start_date, frequency, base_price, volatility)` - Generate OHLCV test data
+- `temp_config_dir` - Temporary config directory with valid configs
+- `config_manager` - ConfigManager instance with test configs
+- `temp_cache_dir` - Temporary cache directory with manifest
+- `sample_backtest_result` - BacktestResult with realistic metrics
+- `sample_walkforward_results` - WalkForwardResults with multiple windows
+
+If you need new fixtures, add them to `tests/conftest.py` for reuse.
+
+## Test Data Management
+
+- Use `tempfile.mkdtemp()` for temporary directories
+- Clean up in `tearDown()` using `shutil.rmtree()`
+- Use `sample_ohlcv_data()` fixture for OHLCV data generation
+- Patch global state (e.g., `CACHE_DIR`) in `setUp()` and restore in `tearDown()`
+- Use realistic but reproducible test data (set random seeds)
+
+## Pytest Markers
+
+ALWAYS use appropriate pytest markers:
+- `@pytest.mark.smoke` - Quick initialization/import tests
+- `@pytest.mark.unit` - Isolated component tests
+- `@pytest.mark.integration` - Component interaction tests
+- `@pytest.mark.e2e` - Full workflow tests
+- `@pytest.mark.system` - System-level tests
+- `@pytest.mark.slow` - Tests that take > 1 second
+- `@pytest.mark.requires_data` - Tests that need real cached data
+
+Run specific test categories:
+```bash
+pytest -m smoke    # Run smoke tests only
+pytest -m unit     # Run unit tests only
+pytest -m integration  # Run integration tests only
+pytest -m e2e      # Run e2e tests only
+pytest -m system   # Run system tests only
+```
+
+## Test Quality Checklist
+
+Before committing tests, verify:
+- [ ] Tests are in correct category directory (`smoke/`, `unit/`, `integration/`, `e2e/`, `system/`)
+- [ ] Test file follows naming: `test_<module>.py`
+- [ ] Test class uses `unittest.TestCase` and has descriptive docstring
+- [ ] All test methods have `test_` prefix and descriptive names
+- [ ] Appropriate pytest marker is applied (`@pytest.mark.[category]`)
+- [ ] `setUp()` and `tearDown()` methods are implemented for cleanup
+- [ ] Tests use fixtures from `conftest.py` when appropriate
+- [ ] Edge cases are tested (None, empty, invalid params)
+- [ ] Temporary files/directories are cleaned up
+- [ ] Tests are deterministic (use random seeds for reproducibility)
+- [ ] Tests run in isolation (no shared state between tests)
+
+## Example Test Creation Workflow
+
+When adding a new feature (e.g., `backtester/data/new_feature.py`):
+
+1. **Create smoke test** (`tests/smoke/test_new_feature_init.py`):
+```python
+@pytest.mark.smoke
+class TestNewFeatureInitialization(unittest.TestCase):
+    def test_import_works(self):
+        from backtester.data.new_feature import NewFeature
+        self.assertIsNotNone(NewFeature)
+    
+    def test_instantiation_works(self):
+        from backtester.data.new_feature import NewFeature
+        feature = NewFeature(param1='value1')
+        self.assertIsNotNone(feature)
+```
+
+2. **Create unit tests** (`tests/unit/test_new_feature.py`):
+```python
+@pytest.mark.unit
+class TestNewFeature(unittest.TestCase):
+    def setUp(self):
+        self.feature = NewFeature(param1='value1')
+    
+    def test_method_happy_path(self):
+        result = self.feature.process(data)
+        self.assertEqual(result.expected_value, 42)
+    
+    def test_method_empty_data(self):
+        result = self.feature.process(pd.DataFrame())
+        self.assertTrue(result.empty)
+```
+
+3. **Create integration test** (`tests/integration/test_new_feature_integration.py`) if it integrates with other components:
+```python
+@pytest.mark.integration
+class TestNewFeatureIntegration(unittest.TestCase):
+    def test_workflow_with_cache_manager(self):
+        # Test how new feature works with cache_manager
+        pass
+```
+
+4. **Create E2E test** (`tests/e2e/test_new_feature_e2e.py`) if it's user-facing:
+```python
+@pytest.mark.e2e
+class TestNewFeatureE2E(unittest.TestCase):
+    def test_complete_user_workflow(self):
+        # Test full user workflow
+        pass
+```
+
+## Enforcement Rules
+
+- When creating new source files, you MUST create corresponding tests
+- When modifying existing source files, you MUST update/add tests
+- Test files MUST be created before or alongside source code changes
+- PRs without tests will be rejected (unless explicitly exempt)
+- All tests MUST pass before merging
+- Tests MUST be categorized correctly (smoke/unit/integration/e2e/system)
+- Tests MUST use the fixtures and patterns described above

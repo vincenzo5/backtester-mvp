@@ -129,7 +129,7 @@ class RSISMAStrategy(BaseStrategy):
         Returns list of IndicatorSpec objects. These will be pre-computed
         before the backtest runs, making it efficient for walk-forward optimization.
         """
-        from indicators.base import IndicatorSpec
+        from backtester.indicators.base import IndicatorSpec
         
         return [
             IndicatorSpec(

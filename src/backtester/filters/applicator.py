@@ -115,7 +115,11 @@ def apply_filters_to_trades(
                         elif entry_date.tz != df.index.tz:
                             normalized_entry_date = entry_date.tz_convert(df.index.tz)
                     else:
-                        normalized_entry_date = pd.to_datetime(entry_date).tz_localize('UTC')
+                        normalized_entry_date = pd.to_datetime(entry_date)
+                        if normalized_entry_date.tz is None:
+                            normalized_entry_date = normalized_entry_date.tz_localize('UTC')
+                        elif normalized_entry_date.tz != df.index.tz:
+                            normalized_entry_date = normalized_entry_date.tz_convert(df.index.tz)
                     
                     if isinstance(exit_date, pd.Timestamp):
                         if exit_date.tz is None:
@@ -123,7 +127,11 @@ def apply_filters_to_trades(
                         elif exit_date.tz != df.index.tz:
                             normalized_exit_date = exit_date.tz_convert(df.index.tz)
                     else:
-                        normalized_exit_date = pd.to_datetime(exit_date).tz_localize('UTC')
+                        normalized_exit_date = pd.to_datetime(exit_date)
+                        if normalized_exit_date.tz is None:
+                            normalized_exit_date = normalized_exit_date.tz_localize('UTC')
+                        elif normalized_exit_date.tz != df.index.tz:
+                            normalized_exit_date = normalized_exit_date.tz_convert(df.index.tz)
                 else:
                     # DataFrame is timezone-naive, ensure trade dates are naive too
                     import pandas as pd

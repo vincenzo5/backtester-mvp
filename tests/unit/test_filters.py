@@ -5,6 +5,7 @@ Tests filter computation, registry, configuration generation, and trade filterin
 """
 
 import unittest
+import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -56,6 +57,7 @@ def create_test_dataframe(num_bars=100, start_date=None) -> pd.DataFrame:
     return df
 
 
+@pytest.mark.unit
 class TestBaseFilter(unittest.TestCase):
     """Test BaseFilter abstract class."""
     
@@ -70,9 +72,12 @@ class TestFilterRegistry(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        # Register test filters
-        register_filter(VolatilityRegimeATR)
-        register_filter(VolatilityRegimeStdDev)
+        # Register test filters only if not already registered (auto-registered via __init__.py)
+        from backtester.filters.registry import get_filter as _get_filter
+        if not _get_filter('volatility_regime_atr'):
+            register_filter(VolatilityRegimeATR)
+        if not _get_filter('volatility_regime_stddev'):
+            register_filter(VolatilityRegimeStdDev)
     
     def test_register_and_get_filter(self):
         """Test registering and retrieving a filter."""

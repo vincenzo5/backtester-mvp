@@ -1,0 +1,32 @@
+---
+description: Critical rules that must never be broken
+globs: src/**/*.py
+alwaysApply: true
+---
+
+# Critical Rules (Priority 1 - Must Follow)
+
+## Cache Interface Contract (NEVER BREAK)
+- `data.cache_manager.read_cache(symbol, timeframe) -> DataFrame` signature is STABLE - MUST NOT change
+- `data.cache_manager.write_cache(symbol, timeframe, df)` signature is STABLE - MUST NOT change
+- Return format: DataFrame with DatetimeIndex and columns ['open', 'high', 'low', 'close', 'volume']
+- Cache files: `{SYMBOL}_{TIMEFRAME}.csv` format (e.g., `BTC_USD_1h.csv`)
+- Location: `data/` directory
+- NEVER add/remove columns from cache format without migration
+- NEVER change function signatures without deprecation period
+- See `docs/interface_contract.md` for full contract details
+
+## Configuration Access
+- ALWAYS use `ConfigManager` instance for configuration access
+- NEVER use `yaml.safe_load()` directly on config files
+- Use typed getter methods: `config.get_backtest_config()`, not `config.config['backtest']`
+- Never access raw internal config dictionaries
+- ConfigManager is a facade that orchestrates Loader + Validator + Accessor
+
+## Strategy Development
+- ALL strategies MUST inherit from `strategies.base_strategy.BaseStrategy`
+- Implement `get_required_indicators(cls, params)` classmethod to declare indicators
+- Use `IndicatorSpec('TYPE', params, 'column_name')` pattern for indicator declaration
+- Implement `next()` method with trading logic
+- Optionally override `notify_order()` for custom order handling
+- Indicators are pre-computed before backtests (optimizes walk-forward)

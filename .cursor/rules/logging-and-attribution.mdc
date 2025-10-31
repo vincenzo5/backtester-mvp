@@ -1,0 +1,454 @@
+---
+description: Logging and attribution standards for tracking all operations and results
+globs: src/**/*.py, scripts/**/*.py
+alwaysApply: true
+---
+
+# Logging and Attribution Standards
+
+Every feature, operation, and result MUST have appropriate logging and attribution data collection for debugging, performance tracking, and reproducibility.
+
+## Logging Setup
+
+### Standard Logger Configuration
+
+ALWAYS set up logging with file and console handlers:
+
+```python
+import logging
+from pathlib import Path
+
+# Setup logging directory
+LOG_DIR = Path('artifacts/logs')
+LOG_DIR.mkdir(exist_ok=True)
+
+# Configure logger for service/script
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_DIR / 'service_name.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+```
+
+### Log Levels
+
+Use appropriate log levels:
+- **DEBUG**: Detailed diagnostic information for troubleshooting
+- **INFO**: General operational messages (start/stop, progress)
+- **WARNING**: Unexpected but recoverable issues
+- **ERROR**: Failures that prevent operation but allow system to continue
+- **CRITICAL**: Fatal errors that should halt operation
+
+### Service-Specific Log Files
+
+Different services MUST use different log files in `artifacts/logs/`:
+- `backtest_execution.jsonl` - Backtest execution traces (JSONL format)
+- `daily_update.log` - Data update operations
+- `gap_filling.log` - Gap filling operations
+- `quality_assessment.log` - Data quality assessments
+- `fetch_errors.log` - Data fetching errors
+- `crash_reports/` - Crash report directory (for exception traces)
+
+## Execution Tracing
+
+### When to Use Execution Tracer
+
+Use `ExecutionTracer` from `backtester.debug.tracer` for:
+- Backtest operations
+- Walk-forward optimization
+- Data preparation workflows
+- Any long-running operation where timing matters
+
+### Tracer Pattern
+
+```python
+from backtester.debug.tracer import ExecutionTracer
+from backtester.config import ConfigManager
+
+# Get tracer from config or create if needed
+config = ConfigManager()
+debug_config = config.get_debug_config()
+
+tracer = ExecutionTracer(debug_config)
+
+# Set execution context
+tracer.set_context(
+    symbol='BTC/USD',
+    timeframe='1h',
+    strategy='sma_cross',
+    parameters={'fast_period': 10, 'slow_period': 20}
+)
+
+# Trace operations
+tracer.trace_function_entry('process_data')
+# ... do work ...
+tracer.trace_function_exit('process_data', duration=elapsed_time)
+
+# Always clean up
+tracer.stop(timeout=5.0)
+```
+
+### Tracing Levels
+
+Configure tracing level in `config/debug.yaml`:
+- **minimal**: Only errors and critical events
+- **standard**: Key operational steps + errors
+- **detailed**: All steps (with optional sampling via `sample_rate`)
+
+## Crash Reporting
+
+### When to Use Crash Reporter
+
+Use `CrashReporter` from `backtester.debug.crash_reporter` for:
+- Exception handling
+- Data validation failures
+- Zero trades scenarios
+- Memory warnings
+- Filter errors
+- Indicator computation errors
+
+### Crash Reporter Pattern
+
+```python
+from backtester.debug.crash_reporter import CrashReporter
+from backtester.config import ConfigManager
+
+config = ConfigManager()
+debug_config = config.get_debug_config()
+
+crash_reporter = CrashReporter(debug_config, tracer=tracer)
+crash_reporter.start()
+
+try:
+    # ... operation that might fail ...
+    pass
+except Exception as e:
+    if crash_reporter.should_capture('exception', exception=e, severity='error'):
+        crash_reporter.capture(
+            'exception',
+            exception=e,
+            context={'symbol': 'BTC/USD', 'operation': 'backtest'},
+            severity='error'
+        )
+finally:
+    crash_reporter.stop(timeout=5.0)
+```
+
+### Auto-Capture Triggers
+
+Configure auto-capture in `config/debug.yaml`:
+- `exception` - Any exception
+- `zero_trades` - Backtest with 0 trades
+- `validation_error` - Data validation failures
+- `memory_warning` - High memory usage
+- `filter_error` - Filter application failures
+- `indicator_error` - Indicator computation failures
+- `data_alignment_error` - Data source alignment failures
+
+## Performance Attribution
+
+### Backtest Performance Tracking
+
+ALL backtests MUST record performance metrics to `artifacts/performance/backtest_performance.jsonl`:
+
+```python
+from backtester.backtest.metrics import save_performance_metrics
+from backtester.config import ConfigManager
+
+# After backtest execution
+config = ConfigManager()
+metrics = run_results.get_metrics()  # From RunResults object
+save_performance_metrics(config, metrics)
+```
+
+Required attribution fields:
+- `timestamp` - ISO format timestamp
+- `strategy_name` - Strategy being tested
+- `hardware_signature` - Hardware profile signature (from `HardwareProfile`)
+- `worker_count` - Number of parallel workers
+- `total_combinations` - Total parameter combinations tested
+- `successful_runs` - Number of successful runs
+- `skipped_runs` - Number of skipped runs
+- `failed_runs` - Number of failed runs
+- `total_execution_time` - Total wall-clock time
+- `avg_time_per_run` - Average time per backtest
+- `data_load_time` - Time spent loading data
+- `backtest_compute_time` - Time spent in backtrader
+- `report_generation_time` - Time spent generating reports
+
+### Data Fetching Attribution
+
+ALL data fetching operations MUST log to `artifacts/logs/bulk_fetch_performance.jsonl`:
+
+```python
+import json
+from datetime import datetime
+
+def log_performance(performance_file, data):
+    """Log performance metrics to JSON Lines file."""
+    with open(performance_file, 'a') as f:
+        f.write(json.dumps(data) + '\n')
+
+# During fetch operation
+perf_data = {
+    'timestamp': datetime.utcnow().isoformat() + 'Z',
+    'market': 'BTC/USD',
+    'timeframe': '1h',
+    'candles': 1000,
+    'duration': 5.2,
+    'status': 'success',
+    'source_exchange': 'coinbase',
+    'api_requests': 3
+}
+log_performance('artifacts/logs/bulk_fetch_performance.jsonl', perf_data)
+```
+
+Required fields:
+- `timestamp` - UTC timestamp in ISO format
+- `market` - Market symbol
+- `timeframe` - Timeframe
+- `candles` - Number of candles fetched
+- `duration` - Fetch duration in seconds
+- `status` - 'success', 'skipped', or 'failed'
+- `source` - 'cache', 'coinbase', 'binance', etc.
+- `api_requests` - Number of API calls made
+
+### Hardware Attribution
+
+Always include hardware signature in performance tracking:
+
+```python
+from backtester.backtest.execution.hardware import HardwareProfile
+
+# Get or create hardware profile (cached automatically)
+hardware = HardwareProfile.get_or_create()
+
+# Use signature in attribution
+hardware_signature = hardware.signature  # e.g., "8c_32gb"
+```
+
+Hardware profile is automatically cached in `artifacts/performance/hardware_profile.json` and redetected if hardware changes.
+
+## Structured Logging
+
+### JSONL Format for Traces
+
+Use JSONL format for execution traces (append-only, one JSON object per line):
+
+```python
+def log_trace(entry):
+    """Log execution trace entry to JSONL file."""
+    with open('artifacts/logs/backtest_execution.jsonl', 'a') as f:
+        f.write(json.dumps(entry) + '\n')
+
+# Trace entry structure
+trace_entry = {
+    'timestamp': datetime.now(timezone.utc).isoformat(),
+    'event_type': 'function_entry',
+    'function': 'run_backtest',
+    'context': {
+        'symbol': 'BTC/USD',
+        'timeframe': '1h',
+        'strategy': 'sma_cross'
+    },
+    'message': 'Entering run_backtest'
+}
+log_trace(trace_entry)
+```
+
+### Context Propagation
+
+Always propagate context through execution trace:
+- Symbol and timeframe for data operations
+- Strategy name and parameters for backtests
+- Window index and period for walk-forward
+- Filter configuration for filter operations
+
+## Log Rotation
+
+### Automatic Log Rotation
+
+Configure log rotation in `config/debug.yaml`:
+
+```yaml
+debug:
+  logging:
+    rotation:
+      max_bytes: 10485760  # 10MB per file
+      backup_count: 5       # Keep 5 backup files
+```
+
+Larger services should use `RotatingFileHandler`:
+
+```python
+from logging.handlers import RotatingFileHandler
+
+handler = RotatingFileHandler(
+    'artifacts/logs/service.log',
+    maxBytes=10485760,  # 10MB
+    backupCount=5
+)
+```
+
+## Error Handling and Logging
+
+### Error Logging Pattern
+
+Always log errors with context:
+
+```python
+import logging
+logger = logging.getLogger(__name__)
+
+try:
+    # ... operation ...
+    pass
+except FetchError as e:
+    logger.error(
+        f"Failed to fetch {symbol} {timeframe}: {e}",
+        extra={
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'operation': 'fetch_data',
+            'error_type': type(e).__name__
+        }
+    )
+    raise
+except Exception as e:
+    logger.exception("Unexpected error in operation")  # Includes stack trace
+    raise
+```
+
+### Validation Error Logging
+
+Log validation issues separately for tracking:
+
+```python
+def log_validation_issue(validation_file, data):
+    """Log validation issue to validation log."""
+    with open(validation_file, 'a') as f:
+        f.write(json.dumps(data) + '\n')
+
+# During validation
+validation_data = {
+    'timestamp': datetime.now().isoformat(),
+    'symbol': 'BTC/USD',
+    'timeframe': '1h',
+    'issue_type': 'gap',
+    'start': '2024-01-01T00:00:00Z',
+    'end': '2024-01-02T00:00:00Z',
+    'candles_missing': 24
+}
+log_validation_issue('artifacts/logs/data_validation.log', validation_data)
+```
+
+## Required Attribution for New Features
+
+When adding ANY new feature, you MUST:
+
+1. **Set up proper logging** - Create logger with appropriate file handler
+2. **Log start/completion** - Log operation start and completion with timestamps
+3. **Track performance** - Record execution time and resource usage
+4. **Handle errors gracefully** - Log all errors with context, no silent failures
+5. **Propagate context** - Include relevant context (symbol, timeframe, parameters, etc.)
+6. **Use appropriate format** - Structured JSONL for traces, plain text for human-readable logs
+7. **Implement rotation** - Use rotating file handlers to prevent disk bloat
+8. **Hardware attribution** - Include hardware signature for performance tracking
+
+## Examples by Feature Type
+
+### Data Fetching Service
+
+```python
+logger.info(f"Fetching {market} {timeframe}...")
+start_time = time.time()
+
+try:
+    df = fetch_data(market, timeframe, start_date, end_date)
+    duration = time.time() - start_time
+    
+    # Log success
+    logger.info(f"✓ {len(df):,} candles in {duration:.1f}s")
+    
+    # Performance attribution
+    perf_data = {
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'market': market,
+        'timeframe': timeframe,
+        'candles': len(df),
+        'duration': round(duration, 2),
+        'status': 'success',
+        'source_exchange': 'coinbase'
+    }
+    log_performance(performance_file, perf_data)
+except Exception as e:
+    logger.error(f"Failed to fetch {market} {timeframe}: {e}")
+    raise
+```
+
+### Backtest Operation
+
+```python
+logger.info(f"Running backtest for {symbol} {timeframe}")
+tracer.set_context(symbol=symbol, timeframe=timeframe, strategy=strategy_name)
+tracer.trace_function_entry('backtest_run')
+
+try:
+    result = run_backtest(config_manager, df, strategy_class, verbose=True)
+    
+    # Log key metrics
+    logger.info(f"Backtest complete: {result.metrics.total_return_pct:.2f}% return, "
+                f"{result.metrics.num_trades} trades")
+    
+    # Save performance metrics
+    save_performance_metrics(config_manager, run_results.get_metrics())
+    
+    tracer.trace_function_exit('backtest_run', duration=result.execution_time)
+except Exception as e:
+    logger.error(f"Backtest failed: {e}")
+    crash_reporter.capture('exception', exception=e, severity='error')
+    raise
+finally:
+    tracer.stop()
+```
+
+### Quality Assessment
+
+```python
+logger.info("=" * 80)
+logger.info("Quality Assessment Started")
+logger.info("=" * 80)
+
+start_time = time.time()
+results = []
+
+for symbol, timeframe in markets:
+    logger.info(f"Assessing {symbol} {timeframe}...")
+    
+    try:
+        score = assess_quality(symbol, timeframe)
+        results.append({'symbol': symbol, 'timeframe': timeframe, 'score': score})
+        logger.info(f"  Quality score: {score:.2f}")
+    except Exception as e:
+        logger.error(f"  Assessment failed: {e}")
+        results.append({'symbol': symbol, 'timeframe': timeframe, 'error': str(e)})
+
+duration = time.time() - start_time
+logger.info(f"Assessment complete in {duration:.1f}s")
+logger.info(f"Processed {len(results)} datasets")
+```
+
+## Anti-Patterns to Avoid
+
+❌ **DON'T** use `print()` for logging - always use `logging` module
+❌ **DON'T** log sensitive information (API keys, secrets, passwords)
+❌ **DON'T** create unbounded log files - always use rotation
+❌ **DON'T** log at wrong level - DEBUG for debug info, ERROR for errors
+❌ **DON'T** forget to stop background threads (tracer, crash_reporter)
+❌ **DON'T** log without context - always include operation details
+❌ **DON'T** suppress exceptions - log and re-raise with context
+❌ **DON'T** ignore attribution - always track performance metrics

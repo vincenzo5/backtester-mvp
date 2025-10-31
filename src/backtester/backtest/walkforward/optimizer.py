@@ -66,14 +66,22 @@ class WindowOptimizer:
                 elif window_start.tz != data_df.index.tz:
                     window_start = window_start.tz_convert(data_df.index.tz)
             else:
-                window_start = pd.to_datetime(window_start).tz_localize('UTC')
+                window_start = pd.to_datetime(window_start)
+                if window_start.tz is None:
+                    window_start = window_start.tz_localize('UTC')
+                elif window_start.tz != data_df.index.tz:
+                    window_start = window_start.tz_convert(data_df.index.tz)
             if isinstance(window_end, pd.Timestamp):
                 if window_end.tz is None:
                     window_end = window_end.tz_localize('UTC')
                 elif window_end.tz != data_df.index.tz:
                     window_end = window_end.tz_convert(data_df.index.tz)
             else:
-                window_end = pd.to_datetime(window_end).tz_localize('UTC')
+                window_end = pd.to_datetime(window_end)
+                if window_end.tz is None:
+                    window_end = window_end.tz_localize('UTC')
+                elif window_end.tz != data_df.index.tz:
+                    window_end = window_end.tz_convert(data_df.index.tz)
         else:
             # DataFrame is timezone-naive, ensure window dates are naive too
             if isinstance(window_start, pd.Timestamp) and window_start.tz is not None:

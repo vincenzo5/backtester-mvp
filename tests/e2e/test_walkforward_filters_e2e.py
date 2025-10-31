@@ -140,7 +140,9 @@ class TestWalkForwardFiltersEndToEnd(unittest.TestCase):
             },
             'walkforward.yaml': {
                 'walkforward': {
-                    'enabled': True,
+                    'start_date': '2023-01-01',  # Required by validator
+                    'end_date': '2023-09-30',    # Required by validator
+                    'initial_capital': 10000.0,   # Required by validator
                     'periods': ['3M/1M'],  # Short periods for testing
                     'fitness_functions': ['net_profit'],
                     'parameter_ranges': {
@@ -148,6 +150,12 @@ class TestWalkForwardFiltersEndToEnd(unittest.TestCase):
                         'slow_period': {'start': 20, 'end': 25, 'step': 5}
                     },
                     'filters': ['volatility_regime_atr']  # Enable filters
+                }
+            },
+            'debug.yaml': {
+                'debug': {
+                    'enabled': False,
+                    'logging': {'level': 'INFO'}
                 }
             }
         }

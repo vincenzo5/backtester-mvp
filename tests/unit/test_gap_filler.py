@@ -29,7 +29,7 @@ class TestGapFilling(unittest.TestCase):
         test_cache_dir.mkdir(parents=True)
         
         # Temporarily modify cache path
-        import data.cache_manager as cm_module
+        from backtester.data import cache_manager as cm_module
         self.original_cache = cm_module.CACHE_DIR
         self.original_manifest = cm_module.MANIFEST_FILE
         cm_module.CACHE_DIR = test_cache_dir
@@ -40,7 +40,7 @@ class TestGapFilling(unittest.TestCase):
         shutil.rmtree(self.temp_dir)
         
         # Restore original cache path
-        import data.cache_manager as cm_module
+        from backtester.data import cache_manager as cm_module
         cm_module.CACHE_DIR = self.original_cache
         cm_module.MANIFEST_FILE = self.original_manifest
     
@@ -72,7 +72,7 @@ class TestGapFilling(unittest.TestCase):
         gap_start = pd.to_datetime('2025-01-01 10:00:00', utc=True)
         gap_end = pd.to_datetime('2025-01-01 14:00:00', utc=True)
         
-        with patch('data.gap_filler.fetch_historical') as mock_fetch:
+        with patch('backtester.data.gap_filler.fetch_historical') as mock_fetch:
             mock_fetch.return_value = (pd.DataFrame(), 0)
             
             result = fill_gap('BTC/USD', '1h', gap_start, gap_end, 'coinbase')
@@ -110,7 +110,7 @@ class TestGapFilling(unittest.TestCase):
         self.assertGreater(len(gaps), 0)
         
         # Test fill_all_gaps structure (without actual fetching)
-        with patch('data.gap_filler.fill_gap') as mock_fill:
+        with patch('backtester.data.gap_filler.fill_gap') as mock_fill:
             mock_fill.return_value = {
                 'status': 'no_data',
                 'candles_added': 0,

@@ -1,0 +1,40 @@
+---
+description: Configuration standards and patterns
+globs: config/**/*.yaml, src/backtester/config/**/*.py
+alwaysApply: true
+---
+
+# Configuration Standards (Priority 2)
+
+## Configuration File Organization
+- Configuration is split into domain-specific files: `config/[domain].yaml`
+- Each domain has its own file: `backtest.yaml`, `trading.yaml`, `strategy.yaml`, `data.yaml`, `data_quality.yaml`, `parallel.yaml`, `walkforward.yaml`, `exchange.yaml`
+- Profile-based configs go in `config/profiles/[profile].yaml`
+- Exchange metadata remains in `exchange_metadata.yaml` (discovery data, not configuration)
+- NEVER create or modify a monolithic `config.yaml` file
+
+## Adding New Configuration
+- New config belongs in the appropriate domain-specific file: `config/[domain].yaml`
+- Add corresponding validator in `config/core/validator.py` for the domain
+- Add typed accessor method in `config/core/accessor.py`
+- Create typed config dataclass/Pydantic model for type safety
+- Update tests in `tests/unit/test_config_manager.py`
+
+## Configuration Validation
+- All numeric fields must have range validation
+- All date fields must validate ISO format and logical constraints (e.g., end_date > start_date)
+- Enum fields must validate against allowed values (mode: auto|manual, fee_type: maker|taker)
+- Required fields must be validated for each domain
+- Add validation tests for new fields
+- Validation logic belongs in `config/core/validator.py`, not in accessor methods
+
+## Configuration Architecture
+- Use ConfigLoader to load YAML files (do not load YAML directly)
+- Use ConfigValidator to validate configuration (validation is separate from loading)
+- Use ConfigAccessor to access configuration values (typed accessors, not raw dicts)
+- ConfigManager orchestrates: Loader + Validator + Accessor
+
+## Strategy Configuration
+- Strategy parameters belong in `config/strategy.yaml`
+- Each strategy can have strategy-specific parameter validation
+- Strategy name and parameters must be validated

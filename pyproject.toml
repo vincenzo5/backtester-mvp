@@ -34,3 +34,25 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--disable-warnings",
+]
+markers = [
+    "unit: Unit tests (isolated components)",
+    "integration: Integration tests (component interactions)",
+    "system: System tests (end-to-end workflows)",
+    "e2e: End-to-end tests (real data scenarios)",
+    "smoke: Smoke tests (fast startup validation)",
+    "slow: Slow-running tests (walk-forward, large datasets)",
+    "parallel: Tests that use parallel execution",
+    "requires_data: Tests that require cached data",
+]
+

@@ -7,6 +7,7 @@ and sell signals when the fast SMA crosses below the slow SMA.
 
 import backtrader as bt
 from backtester.strategies.base_strategy import BaseStrategy
+from typing import List, Dict, Any
 
 
 class SMACrossStrategy(BaseStrategy):
@@ -17,6 +18,29 @@ class SMACrossStrategy(BaseStrategy):
         ('slow_period', 50),
         ('printlog', True),
     )
+    
+    @classmethod
+    def get_required_indicators(cls, params: Dict[str, Any]) -> List:
+        """
+        Declare required indicators for this strategy.
+        
+        Returns list of IndicatorSpec objects. These will be pre-computed
+        before the backtest runs, making it efficient for walk-forward optimization.
+        """
+        from backtester.indicators.base import IndicatorSpec
+        
+        return [
+            IndicatorSpec(
+                'SMA',
+                {'timeperiod': params.get('fast_period', 20)},
+                f"SMA_{params.get('fast_period', 20)}"
+            ),
+            IndicatorSpec(
+                'SMA',
+                {'timeperiod': params.get('slow_period', 50)},
+                f"SMA_{params.get('slow_period', 50)}"
+            ),
+        ]
     
     def __init__(self):
         """Initialize indicators."""

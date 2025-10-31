@@ -116,13 +116,13 @@ def calculate_coverage_score(df: pd.DataFrame, timeframe: str,
     # Ensure timezone awareness matches
     if isinstance(start_date, pd.Timestamp):
         if df.index.tz is not None and start_date.tz is None:
-            start_date = pd.to_datetime(start_date).tz_localize(df.index.tz)
+            start_date = start_date.tz_localize(df.index.tz)
         elif df.index.tz is None and start_date.tz is not None:
             start_date = start_date.tz_localize(None)
     
     if isinstance(end_date, pd.Timestamp):
         if df.index.tz is not None and end_date.tz is None:
-            end_date = pd.to_datetime(end_date).tz_localize(df.index.tz)
+            end_date = end_date.tz_localize(df.index.tz)
         elif df.index.tz is None and end_date.tz is not None:
             end_date = end_date.tz_localize(None)
     
@@ -329,13 +329,13 @@ def calculate_completeness_score(df: pd.DataFrame, timeframe: str,
     # Ensure timezone awareness matches
     if isinstance(expected_start_date, pd.Timestamp):
         if df.index.tz is not None and expected_start_date.tz is None:
-            expected_start_date = pd.to_datetime(expected_start_date).tz_localize(df.index.tz)
+            expected_start_date = expected_start_date.tz_localize(df.index.tz)
         elif df.index.tz is None and expected_start_date.tz is not None:
             expected_start_date = expected_start_date.tz_localize(None)
     
     if isinstance(expected_end_date, pd.Timestamp):
         if df.index.tz is not None and expected_end_date.tz is None:
-            expected_end_date = pd.to_datetime(expected_end_date).tz_localize(df.index.tz)
+            expected_end_date = expected_end_date.tz_localize(df.index.tz)
         elif df.index.tz is None and expected_end_date.tz is not None:
             expected_end_date = expected_end_date.tz_localize(None)
     

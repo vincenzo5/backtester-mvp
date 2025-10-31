@@ -1,0 +1,56 @@
+---
+description: Quick reference for common patterns and key files
+globs: src/**/*.py, scripts/**/*.py
+alwaysApply: false
+---
+
+# Quick Reference
+
+## Common Patterns
+
+### Config Access
+```python
+from backtester.config import ConfigManager
+config = ConfigManager()
+bt_config = config.get_backtest_config()
+```
+
+### Strategy Indicator Declaration
+```python
+@classmethod
+def get_required_indicators(cls, params):
+    from indicators.base import IndicatorSpec
+    return [
+        IndicatorSpec('SMA', {'timeperiod': params['fast']}, 'SMA_fast'),
+        IndicatorSpec('RSI', {'timeperiod': 14}, 'RSI_14'),
+    ]
+```
+
+### Custom Indicators
+```python
+from indicators.base import register_custom_indicator
+def my_indicator(df, params):
+    return df['close'].rolling(window=params['period']).mean()
+register_custom_indicator('MY_SMA', my_indicator)
+```
+
+### Cache Reading
+```python
+from backtester.data.cache_manager import read_cache
+df = read_cache('BTC/USD', '1h')
+```
+
+## Key Files
+- Config patterns: `src/backtester/config/core/manager.py`
+- Cache manager: `src/backtester/data/cache_manager.py`
+- Strategy examples: `src/backtester/strategies/sma_cross.py`
+- Indicator base: `src/backtester/indicators/base.py`
+- Backtest engine: `src/backtester/backtest/engine.py`
+- Test examples: `tests/unit/test_config_manager.py`
+
+## Documentation Files
+- Data contract: `docs/interface_contract.md` (CRITICAL)
+- Data pipeline: `docs/data_pipeline.md`
+- Data quality: `docs/data_quality_guide.md`
+- Deployment: `docs/deployment.md`
+- Indicators: `docs/indicators_and_data_sources.md`

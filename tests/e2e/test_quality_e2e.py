@@ -37,14 +37,14 @@ class TestQualitySystemE2E(unittest.TestCase):
         test_cache_dir.mkdir(parents=True)
         
         # Temporarily modify paths
-        import data.cache_manager as cm_module
+        from backtester.data import cache_manager as cm_module
         self.original_cache = cm_module.CACHE_DIR
         self.original_manifest = cm_module.MANIFEST_FILE
         cm_module.CACHE_DIR = test_cache_dir
         cm_module.MANIFEST_FILE = test_cache_dir / '.cache_manifest.json'
         
         # Modify quality metadata path
-        import data.quality_metadata as qm_module
+        from backtester.data import quality_metadata as qm_module
         self.original_quality_file = qm_module.QUALITY_METADATA_FILE
         qm_module.QUALITY_METADATA_FILE = Path(self.temp_dir) / 'quality_metadata.json'
     
@@ -53,11 +53,11 @@ class TestQualitySystemE2E(unittest.TestCase):
         shutil.rmtree(self.temp_dir)
         
         # Restore original paths
-        import data.cache_manager as cm_module
+        from backtester.data import cache_manager as cm_module
         cm_module.CACHE_DIR = self.original_cache
         cm_module.MANIFEST_FILE = self.original_manifest
         
-        import data.quality_metadata as qm_module
+        from backtester.data import quality_metadata as qm_module
         qm_module.QUALITY_METADATA_FILE = self.original_quality_file
     
     def test_full_quality_pipeline(self):
@@ -99,7 +99,7 @@ class TestQualitySystemE2E(unittest.TestCase):
         self.assertEqual(len(cached_df), len(df))
         
         # Run quality assessment via service (which saves metadata)
-        from services.quality_runner import assess_dataset_quality
+        from backtester.services.quality_runner import assess_dataset_quality
         
         result = assess_dataset_quality(
             'BTC/USD', '1h',
@@ -207,7 +207,7 @@ class TestQualitySystemE2E(unittest.TestCase):
         self.assertGreater(len(gaps), 0)
         
         # Run quality assessment via service
-        from services.quality_runner import assess_dataset_quality
+        from backtester.services.quality_runner import assess_dataset_quality
         
         result = assess_dataset_quality(
             'GAP/USD', '1h',
@@ -255,7 +255,7 @@ class TestQualitySystemE2E(unittest.TestCase):
             write_cache(symbol, '1h', df)
             
             # Assess quality via service (saves metadata)
-            from services.quality_runner import assess_dataset_quality
+            from backtester.services.quality_runner import assess_dataset_quality
             assess_dataset_quality(symbol, '1h', perform_liveliness_check=False)
         
         # Load all metadata

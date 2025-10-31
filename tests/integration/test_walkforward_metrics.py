@@ -23,7 +23,7 @@ from backtester.backtest.walkforward.metrics_calculator import (
     BacktestMetrics,
     update_walkforward_efficiency
 )
-from tests.test_metrics_calculator import create_minimal_metrics
+from tests.unit.test_metrics_calculator import create_minimal_metrics
 
 
 def create_test_metrics(**overrides) -> BacktestMetrics:

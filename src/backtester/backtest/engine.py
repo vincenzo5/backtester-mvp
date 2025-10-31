@@ -194,7 +194,7 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
         indicator_specs = strategy_class.get_required_indicators(strategy_params)
         
         if indicator_specs:
-            from indicators import IndicatorLibrary
+            from backtester.indicators import IndicatorLibrary
             lib = IndicatorLibrary()
             result_df = lib.compute_all(result_df, indicator_specs)
             

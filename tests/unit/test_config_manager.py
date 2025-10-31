@@ -3,12 +3,14 @@ Tests for walk-forward configuration management.
 """
 
 import unittest
+import pytest
 import tempfile
 import os
 import yaml
 from backtester.config import ConfigManager, ConfigError
 
 
+@pytest.mark.unit
 class TestWalkForwardConfig(unittest.TestCase):
     """Test walk-forward configuration parsing."""
     
@@ -48,6 +50,7 @@ class TestWalkForwardConfig(unittest.TestCase):
         
         data_quality_config = {'data_quality': {'weights': {}, 'thresholds': {}}}
         parallel_config = {'parallel': {'mode': 'auto'}}
+        debug_config = {'debug': {'enabled': False, 'logging': {'level': 'INFO'}}}
         
         for config_dict, filename in [
             (data_config, 'data.yaml'),
@@ -55,7 +58,8 @@ class TestWalkForwardConfig(unittest.TestCase):
             (strategy_config, 'strategy.yaml'),
             (walkforward_config, 'walkforward.yaml'),
             (data_quality_config, 'data_quality.yaml'),
-            (parallel_config, 'parallel.yaml')
+            (parallel_config, 'parallel.yaml'),
+            (debug_config, 'debug.yaml')
         ]:
             with open(os.path.join(self.config_dir, filename), 'w') as f:
                 yaml.dump(config_dict, f)

@@ -1,0 +1,94 @@
+---
+description: Best practices and development patterns
+globs: src/**/*.py, scripts/**/*.py
+alwaysApply: true
+---
+
+# Best Practices (Priority 3)
+
+## Backtest Flow
+1. Load configuration via `ConfigManager`
+2. Load OHLCV data via `data.cache_manager.read_cache()`
+3. Prepare data: compute indicators, align data sources (via `engine.prepare_backtest_data()`)
+4. Run backtest via `engine.run_backtest()`
+5. Return results via `result.BacktestResult`
+
+## Walk-Forward Optimization
+- Period specification format: "1Y/6M" (length/step)
+- Use `walkforward/period_parser.py` for parsing
+- Use `walkforward/param_grid.py` for parameter combinations
+- Use `walkforward/optimizer.py` for grid search
+- Store results via `walkforward/results.py`
+
+## Metrics Calculation
+- Standard metrics in `backtest/metrics.py`
+- Walk-forward specific metrics in `walkforward/metrics_calculator.py`
+- ALWAYS calculate and report: Sharpe ratio, total return, max drawdown
+- Include win rate, profit factor for trade-based metrics
+
+## Data Management
+- Use `scripts/data/bulk_fetch.py` for initial historical data collection
+- Use `scripts/data/refetch_market.py` for manual market re-fetch
+- Implement delta updates (only fetch new candles since last cache update)
+- Always update manifest (`.cache_manifest.json`) after cache writes
+- Validate data for gaps and duplicates before writing
+- Log errors to `artifacts/logs/fetch_errors.log`
+- Follow patterns in `src/backtester/data/fetcher.py` for CCXT integration
+
+## Data Quality
+- Use data quality scoring system in `src/backtester/data/quality_scorer.py`
+- Store quality metadata in `src/backtester/data/quality_metadata.json`
+- Follow quality assessment patterns in `scripts/assess_all_data_quality.py`
+- See `docs/data_quality_guide.md` for standards
+
+## Performance Optimization
+- Pre-compute indicators before backtests (optimizes walk-forward)
+- Use `engine.prepare_backtest_data()` for enrichment
+- Remove unnecessary data after backtest completion
+- Use generators for large datasets
+- Profile memory usage for parallel execution
+
+## Logging
+- Use Python `logging` module, not `print()`
+- Write logs to `artifacts/logs/` directory
+- Different log files for different concerns (fetch_errors.log, quality_assessment.log, etc.)
+- Include timestamps and context in log messages
+
+## Security
+- NEVER commit API keys or secrets
+- Use `.env` files for local development (gitignored)
+- Use environment variables for production
+- Document required environment variables
+- Validate all inputs from config files
+- Sanitize file paths to prevent directory traversal
+
+## Git & Version Control
+- Ignore `__pycache__/` and `*.pyc` files
+- Ignore `data/cache/*` and `data/raw/*` (but keep structure)
+- Ignore `artifacts/logs/*`, `artifacts/reports/*`, `artifacts/performance/*`
+- Ignore `.env` and `*.egg-info/`
+- Keep directory structure with `.gitkeep` files
+- Use clear, descriptive commit messages
+- Reference issues/PRs when applicable
+- Breaking changes require migration documentation
+
+## Docker & Deployment
+- `deployment/Dockerfile` for containerization
+- `deployment/docker-compose.yml` for orchestration
+- Services: `bulk-fetch`, `scheduler`, `update-runner`
+- Use `scripts/deployment/start.sh` or `start.ps1` for single-command startup
+- Run bulk fetch and scheduler in containers
+- Persist `data/` directory via volumes
+- Backtests run on host for development workflow
+
+## Documentation Standards
+- All modules require docstrings explaining purpose
+- Include "Quick Start" examples in module docstrings
+- Include "Common Patterns" section for usage examples
+- Include "Extending" section for development patterns
+- Document stable interfaces (see Interface Contract section)
+- Explain WHY, not WHAT (code should be self-documenting)
+- Add comments for complex algorithms
+- Document all public functions and classes
+- Include parameter types and return types
+- Provide usage examples in docstrings
