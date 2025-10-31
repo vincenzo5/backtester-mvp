@@ -43,7 +43,15 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
-    "--disable-warnings",
+]
+filterwarnings = [
+    # Suppress third-party deprecation warnings we can't fix
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::FutureWarning",
+    
+    # But keep our own UserWarnings visible for debugging
+    "default::UserWarning",
 ]
 markers = [
     "unit: Unit tests (isolated components)",

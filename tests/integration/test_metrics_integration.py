@@ -39,7 +39,7 @@ class TestMetricsIntegration(unittest.TestCase):
             'close': prices,
             'volume': np.random.randint(1000000, 10000000, 500)
         }, index=dates)
-        self.df.iloc[0]['open'] = base_price
+        self.df.at[self.df.index[0], 'open'] = base_price
         
         # Prepare data
         strategy_params = self.config.get_strategy_config().parameters

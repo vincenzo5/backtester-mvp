@@ -29,4 +29,11 @@ debug:
     rotation:
       max_bytes: 10485760  # 10MB
       backup_count: 5
+  
+  performance:
+    enabled: true
+    change_tracking: true  # Capture git commit, config hashes, dependency versions
+    cache_tracking: true  # Track indicator cache hits/misses and time saved
+    resource_sampling: false  # Optional: sample CPU/memory periodically (adds overhead)
+    detailed_breakdown: false  # Per-indicator timing breakdown (adds overhead)
 

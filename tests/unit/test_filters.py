@@ -308,6 +308,144 @@ class TestFilterApplicator(unittest.TestCase):
         self.assertTrue(_check_matching_logic('either', 'high', 'low', 'high'))
         self.assertTrue(_check_matching_logic('either', 'low', 'high', 'high'))
         self.assertFalse(_check_matching_logic('either', 'low', 'low', 'high'))
+    
+    def test_missing_filter_column(self):
+        """Test that ValueError is raised when filter column is missing."""
+        # Create DataFrame without filter column
+        df_without_filter = create_test_dataframe(100)
+        
+        # Try to apply filter that doesn't exist in DataFrame
+        filter_config = {'volatility_regime_atr': 'high'}
+        
+        with self.assertRaises(ValueError) as context:
+            apply_filters_to_trades(self.trades, df_without_filter, filter_config)
+        
+        # Verify error message includes missing column name
+        error_msg = str(context.exception)
+        self.assertIn('volatility_regime_atr', error_msg)
+        self.assertIn('not found', error_msg)
+    
+    def test_trades_outside_dataframe_range(self):
+        """Test trades with dates outside DataFrame range."""
+        # Create trades with dates far outside DataFrame range
+        future_date = self.df.index[-1] + timedelta(days=365)
+        past_date = self.df.index[0] - timedelta(days=365)
+        
+        trades_outside = [
+            {
+                'entry_date': past_date,
+                'exit_date': past_date + timedelta(hours=5),
+                'entry_price': 100.0,
+                'exit_price': 105.0,
+                'size': 1.0,
+                'pnl': 5.0,
+                'gross_pnl': 5.0,
+                'entry_commission': 0.0,
+                'exit_commission': 0.0
+            },
+            {
+                'entry_date': future_date,
+                'exit_date': future_date + timedelta(hours=5),
+                'entry_price': 110.0,
+                'exit_price': 115.0,
+                'size': 1.0,
+                'pnl': 5.0,
+                'gross_pnl': 5.0,
+                'entry_commission': 0.0,
+                'exit_commission': 0.0
+            }
+        ]
+        
+        # Filter should exclude these trades (nearest matching may pick wrong bars)
+        filter_config = {'volatility_regime_atr': 'high'}
+        filtered = apply_filters_to_trades(trades_outside, self.df, filter_config)
+        
+        # Trades should be excluded (may match nearest bars but likely won't match regime)
+        # This tests that the function handles out-of-range dates gracefully
+        self.assertIsInstance(filtered, list)
+        # The exact count depends on nearest match, but we verify it doesn't crash
+    
+    def test_multiple_filters_different_modes(self):
+        """Test multiple filters with different matching modes."""
+        # Add second filter column
+        stddev_filter = VolatilityRegimeStdDev()
+        self.df['volatility_regime_stddev'] = stddev_filter.compute_classification(self.df)
+        
+        # Test entry + entry (both filters use 'entry' matching by default)
+        filter_config = {
+            'volatility_regime_atr': 'high',
+            'volatility_regime_stddev': 'high'
+        }
+        filtered = apply_filters_to_trades(self.trades, self.df, filter_config)
+        
+        # Should only include trades where BOTH entry regimes match
+        # Verify it's a subset or equal to single filter result
+        single_filter_config = {'volatility_regime_atr': 'high'}
+        single_filtered = apply_filters_to_trades(self.trades, self.df, single_filter_config)
+        
+        # Multiple filters with AND logic should have <= trades than single filter
+        self.assertLessEqual(len(filtered), len(single_filtered))
+        self.assertLessEqual(len(filtered), len(self.trades))
+        
+        # Verify all filtered trades match both regimes at entry
+        for trade in filtered:
+            entry_date = trade['entry_date']
+            entry_idx = self.df.index.get_indexer([entry_date], method='nearest')[0]
+            if entry_idx >= 0:
+                atr_regime = self.df.iloc[entry_idx]['volatility_regime_atr']
+                stddev_regime = self.df.iloc[entry_idx]['volatility_regime_stddev']
+                # Both should be 'high' for trade to be included
+                self.assertEqual(atr_regime, 'high')
+                self.assertEqual(stddev_regime, 'high')
+    
+    def test_timezone_normalization_edge_cases(self):
+        """Test timezone normalization edge cases."""
+        # Test 1: timezone-aware DataFrame with timezone-naive trade dates
+        df_tz = self.df.copy()
+        df_tz.index = df_tz.index.tz_localize('UTC')
+        
+        # Create trades with naive datetime
+        trades_naive = [
+            {
+                'entry_date': datetime(2024, 1, 1, 10),  # Naive datetime
+                'exit_date': datetime(2024, 1, 1, 15),
+                'entry_price': 100.0,
+                'exit_price': 105.0,
+                'size': 1.0,
+                'pnl': 5.0,
+                'gross_pnl': 5.0,
+                'entry_commission': 0.0,
+                'exit_commission': 0.0
+            }
+        ]
+        
+        # Should normalize and apply filter
+        filter_config = {'volatility_regime_atr': 'high'}
+        filtered = apply_filters_to_trades(trades_naive, df_tz, filter_config)
+        self.assertIsInstance(filtered, list)
+        
+        # Test 2: timezone-naive DataFrame with timezone-aware trade dates
+        df_naive = self.df.copy()
+        df_naive.index = df_naive.index.tz_localize(None)
+        
+        # Create trades with timezone-aware datetime using pandas
+        trades_tz = [
+            {
+                'entry_date': pd.Timestamp(datetime(2024, 1, 1, 10), tz='UTC'),  # Timezone-aware
+                'exit_date': pd.Timestamp(datetime(2024, 1, 1, 15), tz='UTC'),
+                'entry_price': 100.0,
+                'exit_price': 105.0,
+                'size': 1.0,
+                'pnl': 5.0,
+                'gross_pnl': 5.0,
+                'entry_commission': 0.0,
+                'exit_commission': 0.0
+            }
+        ]
+        
+        # Should normalize and apply filter
+        filtered = apply_filters_to_trades(trades_tz, df_naive, filter_config)
+        self.assertIsInstance(filtered, list)
 
 
 if __name__ == '__main__':

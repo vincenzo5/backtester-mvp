@@ -253,8 +253,8 @@ def fetch_historical(exchange: ccxt.Exchange, symbol: str, timeframe: str,
     # Convert to DataFrame
     df = pd.DataFrame(all_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
-    df.set_index('datetime', inplace=True)
-    df.drop('timestamp', axis=1, inplace=True)
+    df = df.set_index('datetime')
+    df = df.drop('timestamp', axis=1)
     
     # Remove duplicates and sort
     df = df[~df.index.duplicated(keep='last')]

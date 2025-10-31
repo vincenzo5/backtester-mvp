@@ -52,6 +52,7 @@ Extending:
 
 import backtrader as bt
 import time
+import warnings
 import pandas as pd
 from typing import Optional, List
 
@@ -183,10 +184,20 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
     tracer = get_tracer()
     crash_reporter = get_crash_reporter()
     
+    data_prep_start_time = time.time()
+    
     if tracer:
         tracer.trace_function_entry('prepare_backtest_data', symbol=symbol)
+        tracer.trace('data_prep_start',
+                    "Starting data preparation",
+                    symbol=symbol,
+                    num_candles=len(df))
     
     result_df = df.copy()
+    cache_stats = None
+    indicator_time = 0.0
+    alignment_time = 0.0
+    filter_time = 0.0
     
     # Step 1: Compute indicators
     try:
@@ -196,19 +207,26 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
         if indicator_specs:
             from backtester.indicators import IndicatorLibrary
             lib = IndicatorLibrary()
-            result_df = lib.compute_all(result_df, indicator_specs)
+            
+            indicator_start_time = time.time()
+            result_df = lib.compute_all(result_df, indicator_specs, track_performance=True)
+            indicator_time = time.time() - indicator_start_time
+            
+            # Get cache stats
+            cache_stats = lib.get_cache_stats()
             
             if tracer:
                 tracer.trace('indicators_computed', 
                            f"Computed {len(indicator_specs)} indicators",
-                           indicator_count=len(indicator_specs))
+                           indicator_count=len(indicator_specs),
+                           indicator_time=indicator_time,
+                           cache_stats=cache_stats)
     except AttributeError:
         # Strategy doesn't implement get_required_indicators - that's okay, skip
         pass
     except Exception as e:
         # Log but don't fail - some strategies might not need indicators
-        import warnings
-        warnings.warn(f"Error computing indicators: {str(e)}")
+        warnings.warn(f"Error computing indicators: {str(e)}", UserWarning, stacklevel=2)
         
         # Capture indicator error
         if crash_reporter and crash_reporter.should_capture('indicator_error', e, severity='error'):
@@ -225,6 +243,8 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
         data_sources = strategy_class.get_required_data_sources()
         
         if data_sources:
+            alignment_start_time = time.time()
+            
             # Extract date range from DataFrame
             if not result_df.empty:
                 start_date = result_df.index[0].strftime('%Y-%m-%d')
@@ -246,8 +266,7 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
                         result_df = result_df.join(aligned_data)
                     except Exception as e:
                         # Log but continue with other providers
-                        import warnings
-                        warnings.warn(f"Error fetching data from {provider.__class__.__name__}: {str(e)}")
+                        warnings.warn(f"Error fetching data from {provider.__class__.__name__}: {str(e)}", UserWarning, stacklevel=2)
                         
                         # Capture data alignment error
                         if crash_reporter and crash_reporter.should_capture('data_alignment_error', e, severity='error'):
@@ -258,19 +277,21 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
                         if tracer:
                             tracer.trace_error(e, context={'step': 'data_alignment', 'provider': provider.__class__.__name__})
                         continue
+            
+            alignment_time = time.time() - alignment_start_time
     except AttributeError:
         # Strategy doesn't implement get_required_data_sources - that's okay, skip
         pass
     except Exception as e:
         # Log but don't fail
-        import warnings
-        warnings.warn(f"Error fetching data sources: {str(e)}")
+        warnings.warn(f"Error fetching data sources: {str(e)}", UserWarning, stacklevel=2)
     
     # Step 3: Compute filters if requested
     # Note: Filters are typically computed in WalkForwardRunner once per dataset
     # This allows them to be added here if needed for consistency
     if filter_names:
         try:
+            filter_start_time = time.time()
             from backtester.filters.registry import get_filter
             for filter_name in filter_names:
                 # Skip if filter column already exists (already computed)
@@ -279,16 +300,16 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
                 
                 filter_class = get_filter(filter_name)
                 if filter_class is None:
-                    import warnings
-                    warnings.warn(f"Filter '{filter_name}' not found in registry, skipping")
+                    warnings.warn(f"Filter '{filter_name}' not found in registry, skipping", UserWarning, stacklevel=2)
                     continue
                 
                 filter_instance = filter_class()
                 regime_series = filter_instance.compute_classification(result_df)
                 result_df[filter_name] = regime_series
+            
+            filter_time = time.time() - filter_start_time
         except Exception as e:
-            import warnings
-            warnings.warn(f"Error computing filters: {str(e)}")
+            warnings.warn(f"Error computing filters: {str(e)}", UserWarning, stacklevel=2)
             
             # Capture filter error
             if crash_reporter and crash_reporter.should_capture('filter_error', e, severity='error'):
@@ -299,8 +320,29 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
             if tracer:
                 tracer.trace_error(e, context={'step': 'filter_computation'})
     
+    total_prep_time = time.time() - data_prep_start_time
+    
     if tracer:
-        tracer.trace_function_exit('prepare_backtest_data')
+        tracer.trace('data_prep_end',
+                    "Data preparation complete",
+                    symbol=symbol,
+                    performance={
+                        'total_time_seconds': total_prep_time,
+                        'breakdown': {
+                            'indicator_computation_time': indicator_time,
+                            'data_alignment_time': alignment_time,
+                            'filter_computation_time': filter_time
+                        }
+                    },
+                    cache_stats=cache_stats)
+        tracer.trace_function_exit('prepare_backtest_data', duration=total_prep_time)
+    
+    # Store cache_stats and timing metadata in DataFrame.attrs for access in run_backtest
+    # Using .attrs is the recommended pandas way to store metadata (avoids warnings)
+    result_df.attrs['cache_stats'] = cache_stats
+    result_df.attrs['data_prep_time'] = total_prep_time
+    result_df.attrs['indicator_time'] = indicator_time
+    result_df.attrs['alignment_time'] = alignment_time
     
     return result_df
 
@@ -345,10 +387,26 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     tracer = get_tracer()
     crash_reporter = get_crash_reporter()
     
+    # Calculate data characteristics
+    num_candles = len(df) if not df.empty else 0
+    data_size_mb = df.memory_usage(deep=True).sum() / (1024**2) if not df.empty else 0.0
+    date_range = {
+        'start': str(df.index[0]) if not df.empty else None,
+        'end': str(df.index[-1]) if not df.empty else None
+    } if not df.empty else None
+    
     if tracer:
         tracer.set_context(symbol=symbol, strategy_params=strategy_params)
         tracer.trace_function_entry('run_backtest', symbol=symbol)
-        tracer.trace('backtest_start', "Starting backtest")
+        tracer.trace('backtest_start',
+                    "Starting backtest",
+                    symbol=symbol,
+                    strategy_params=strategy_params,
+                    data={
+                        'num_candles': num_candles,
+                        'date_range': date_range,
+                        'data_size_mb': data_size_mb
+                    })
     
     if verbose:
         print("\n" + "="*60)
@@ -361,7 +419,15 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     if strategy_params is None:
         strategy_params = {}  # Empty dict lets backtrader use defaults from strategy.params
     
+    # Track data preparation time
+    data_prep_start = time.time()
     enriched_df = prepare_backtest_data(df, strategy_class, strategy_params, symbol=symbol)
+    data_prep_time = time.time() - data_prep_start
+    
+    # Extract cache stats and timing from enriched_df.attrs if available
+    cache_stats = enriched_df.attrs.get('cache_stats', None)
+    indicator_time = enriched_df.attrs.get('indicator_time', 0.0)
+    alignment_time = enriched_df.attrs.get('alignment_time', 0.0)
     
     if verbose:
         # Show what was added
@@ -536,8 +602,11 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
         # Print out the starting conditions
         print(f'Starting Portfolio Value: {cerebro.broker.getvalue():.2f}')
     
+    # Track backtrader execution time
+    cerebro_start_time = time.time()
     # Run over everything and capture strategy instance
     run_result = cerebro.run()
+    cerebro_time = time.time() - cerebro_start_time
     
     # Extract the strategy instance from the run result
     # run_result is a list of strategy objects directly
@@ -556,6 +625,8 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     
     backtest_time = time.time() - backtest_start_time
     
+    # Track metrics calculation time
+    metrics_start_time = time.time()
     # Calculate comprehensive metrics using unified calculator
     from backtester.backtest.walkforward.metrics_calculator import calculate_metrics
     from dataclasses import asdict
@@ -571,6 +642,14 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
         start_date=start_date,
         end_date=end_date
     )
+    metrics_time = time.time() - metrics_start_time
+    
+    # Get indicator specs for num_indicators
+    try:
+        indicator_specs = strategy_class.get_required_indicators(strategy_params)
+        num_indicators = len(indicator_specs) if indicator_specs else 0
+    except AttributeError:
+        num_indicators = 0
     
     # Check for zero trades (condition-based trigger)
     if metrics.num_trades == 0:
@@ -591,10 +670,41 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
             tracer.trace('zero_trades_detected', "Backtest completed with 0 trades", num_trades=0)
     
     if tracer:
-        tracer.trace('backtest_end', "Backtest completed",
-                    num_trades=metrics.num_trades,
-                    total_return=metrics.total_return_pct,
-                    execution_time=backtest_time)
+        # Get worker info if in parallel execution
+        import threading
+        thread_name = threading.current_thread().name
+        is_parallel = 'Thread' in thread_name and 'MainThread' not in thread_name
+        
+        tracer.trace('backtest_end',
+                    "Backtest completed",
+                    symbol=symbol,
+                    strategy_params=strategy_params,
+                    performance={
+                        'execution_time_seconds': backtest_time,
+                        'timing_breakdown': {
+                            'data_prep_time': data_prep_time,
+                            'indicator_computation_time': indicator_time,
+                            'data_alignment_time': alignment_time,
+                            'backtrader_execution_time': cerebro_time,
+                            'metrics_calculation_time': metrics_time
+                        },
+                        'cache_stats': cache_stats
+                    },
+                    data={
+                        'num_candles': num_candles,
+                        'date_range': date_range,
+                        'data_size_mb': data_size_mb,
+                        'num_indicators': num_indicators
+                    },
+                    results={
+                        'num_trades': metrics.num_trades,
+                        'total_return_pct': metrics.total_return_pct,
+                        'sharpe_ratio': metrics.sharpe_ratio
+                    },
+                    worker_info={
+                        'thread_id': thread_name,
+                        'is_parallel': is_parallel
+                    })
     
     if verbose:
         print(f'Final Portfolio Value: {final_value:.2f}')

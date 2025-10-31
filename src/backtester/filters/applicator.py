@@ -75,6 +75,21 @@ def apply_filters_to_trades(
         # No data available for filtering, return empty
         return []
     
+    # Validate that all filter columns exist in DataFrame
+    missing_columns = []
+    for filter_name, target_regime in filter_config.items():
+        if target_regime == 'none':
+            continue  # Skip disabled filters
+        if filter_name not in df.columns:
+            missing_columns.append(filter_name)
+    
+    if missing_columns:
+        raise ValueError(
+            f"Filter columns not found in DataFrame: {missing_columns}. "
+            f"Available columns: {list(df.columns)}. "
+            f"Ensure filters are computed before applying to trades."
+        )
+    
     filtered_trades = []
     
     for trade in trades:

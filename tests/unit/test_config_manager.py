@@ -48,7 +48,20 @@ class TestWalkForwardConfig(unittest.TestCase):
             }
         }
         
-        data_quality_config = {'data_quality': {'weights': {}, 'thresholds': {}}}
+        data_quality_config = {
+            'data_quality': {
+                'weights': {
+                    'coverage': 0.30,
+                    'integrity': 0.25,
+                    'gaps': 0.20,
+                    'completeness': 0.15,
+                    'consistency': 0.08,
+                    'volume': 0.01,
+                    'outliers': 0.01
+                },
+                'thresholds': {}
+            }
+        }
         parallel_config = {'parallel': {'mode': 'auto'}}
         debug_config = {'debug': {'enabled': False, 'logging': {'level': 'INFO'}}}
         

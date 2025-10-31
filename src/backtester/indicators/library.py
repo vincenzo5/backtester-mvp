@@ -84,8 +84,11 @@ Extending:
 """
 
 from typing import List, Dict, Any, Union, Optional
+import warnings
 import pandas as pd
 import numpy as np
+import json
+import time
 from backtester.indicators.base import IndicatorSpec, get_custom_indicator
 
 
@@ -101,19 +104,28 @@ class IndicatorLibrary:
         """Initialize the indicator library."""
         # Cache for computed indicators to avoid redundant calculations
         self._computation_cache: Dict[str, pd.Series] = {}
+        
+        # Cache metrics tracking
+        self._cache_stats = {
+            'hits': 0,
+            'misses': 0,
+            'computations': 0,
+            'time_saved_seconds': 0.0
+        }
     
     def compute_indicator(self, df: pd.DataFrame, indicator_type: str, 
-                         params: Dict[str, Any], column_name: str) -> Union[pd.Series, pd.DataFrame]:
+                         params: Dict[str, Any], column_name: str,
+                         track_performance: bool = False) -> Union[pd.Series, pd.DataFrame]:
         """
         Compute a single indicator and return the result.
         
         Args:
             df: OHLCV DataFrame with columns: open, high, low, close, volume
                 Must have datetime index
-            Must have datetime index
             indicator_type: Name of indicator (e.g., 'SMA', 'RSI', 'MACD')
             params: Dictionary of parameters for the indicator
             column_name: Name for the result column (for identification/debugging)
+            track_performance: If True, track cache hits/misses for metrics
         
         Returns:
             pandas Series or DataFrame with computed indicator values
@@ -143,19 +155,49 @@ class IndicatorLibrary:
         if missing:
             raise KeyError(f"Missing required columns: {missing}")
         
+        # Generate cache key for performance tracking
+        cache_key = None
+        if track_performance:
+            cache_key = self._generate_cache_key(indicator_type, params, column_name, df)
+            start_time = time.time()
+        
+        # Check cache if performance tracking is enabled
+        if track_performance and cache_key and cache_key in self._computation_cache:
+            # Cache hit
+            self._cache_stats['hits'] += 1
+            if start_time:
+                # Estimate time saved (use a small fixed value for cache hits)
+                self._cache_stats['time_saved_seconds'] += 0.001  # Minimal overhead for cache lookup
+            return self._computation_cache[cache_key].copy()
+        
+        # Cache miss - compute indicator
+        if track_performance:
+            self._cache_stats['misses'] += 1
+            self._cache_stats['computations'] += 1
+        
+        # Compute the indicator
         # Check if it's a custom indicator
         custom_indicator = get_custom_indicator(indicator_type)
         if custom_indicator:
-            return custom_indicator.compute(df, params)
-        
-        # Route to appropriate computation method
-        if indicator_type in self._get_ta_indicator_names():
-            return self._compute_ta_indicator(df, indicator_type, params)
+            result = custom_indicator.compute(df, params)
+        elif indicator_type in self._get_ta_indicator_names():
+            result = self._compute_ta_indicator(df, indicator_type, params)
         else:
             raise ValueError(f"Unknown indicator type: {indicator_type}. "
                            f"Use register_custom_indicator() to add custom indicators.")
+        
+        # Store in cache if performance tracking is enabled
+        if track_performance and cache_key:
+            self._computation_cache[cache_key] = result.copy()
+            if start_time:
+                compute_time = time.time() - start_time
+                # Track that this computation will save time on next hit
+                self._cache_stats['time_saved_seconds'] += compute_time
+        
+        return result
     
-    def compute_all(self, df: pd.DataFrame, indicator_specs: List[IndicatorSpec]) -> pd.DataFrame:
+    def compute_all(self, df: pd.DataFrame, indicator_specs: List[IndicatorSpec],
+                   track_performance: bool = False) -> pd.DataFrame:
         """
         Compute multiple indicators and add them to the DataFrame.
         
@@ -194,7 +236,8 @@ class IndicatorLibrary:
                     df,  # Use original df to avoid dependencies between indicators
                     spec.indicator_type,
                     spec.params,
-                    spec.column_name
+                    spec.column_name,
+                    track_performance=track_performance
                 )
                 
                 # Handle multi-column indicators (e.g., MACD, Bollinger Bands)
@@ -208,12 +251,60 @@ class IndicatorLibrary:
                     
             except Exception as e:
                 # Log error but continue with other indicators
-                import warnings
                 warnings.warn(f"Failed to compute indicator {spec.indicator_type} "
-                            f"({spec.column_name}): {str(e)}")
+                            f"({spec.column_name}): {str(e)}", UserWarning, stacklevel=2)
                 continue
         
         return result_df
+    
+    def _generate_cache_key(self, indicator_type: str, params: dict, 
+                           column_name: str, df: pd.DataFrame) -> str:
+        """
+        Generate cache key from indicator spec and data fingerprint.
+        
+        Args:
+            indicator_type: Type of indicator
+            params: Indicator parameters
+            column_name: Column name for the indicator
+            df: DataFrame to compute fingerprint from
+        
+        Returns:
+            Cache key string
+        """
+        # Use data hash (first/last row + length) for fingerprint
+        if df.empty:
+            data_fingerprint = "empty"
+        else:
+            data_fingerprint = f"{len(df)}_{df.index[0]}_{df.index[-1]}"
+        params_str = json.dumps(params, sort_keys=True)
+        return f"{indicator_type}:{column_name}:{params_str}:{data_fingerprint}"
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """
+        Get cache effectiveness statistics.
+        
+        Returns:
+            Dictionary with cache hit/miss stats and time saved
+        """
+        total = self._cache_stats['hits'] + self._cache_stats['misses']
+        hit_rate = self._cache_stats['hits'] / total if total > 0 else 0.0
+        
+        return {
+            'hits': self._cache_stats['hits'],
+            'misses': self._cache_stats['misses'],
+            'hit_rate': hit_rate,
+            'total_requests': total,
+            'time_saved_seconds': self._cache_stats['time_saved_seconds']
+        }
+    
+    def reset_cache_stats(self):
+        """Reset cache statistics (for new workflow)."""
+        self._cache_stats = {
+            'hits': 0,
+            'misses': 0,
+            'computations': 0,
+            'time_saved_seconds': 0.0
+        }
     
     def _get_ta_indicator_names(self) -> List[str]:
         """Get list of supported TA-Lib indicator names."""

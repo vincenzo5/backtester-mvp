@@ -5,6 +5,7 @@ Provides type-safe access to configuration values.
 """
 
 from typing import Dict, List, Optional, Any
+import warnings
 from dataclasses import dataclass
 
 
@@ -317,8 +318,7 @@ class ConfigAccessor:
                 if isinstance(f, str):
                     valid_filters.append(f)
                 else:
-                    import warnings
-                    warnings.warn(f"Ignoring invalid filter (must be string): {f}")
+                    warnings.warn(f"Ignoring invalid filter (must be string): {f}", UserWarning, stacklevel=2)
             return valid_filters
         else:
             return []

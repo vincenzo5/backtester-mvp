@@ -14,6 +14,12 @@ from backtester.config.core.accessor import DebugConfig
 from backtester.debug.logging_service import LoggingService
 from backtester.debug.exceptions import TracingError
 
+# Import ChangeTracker only when needed to avoid circular dependencies
+try:
+    from backtester.debug.change_tracker import ChangeTracker
+except ImportError:
+    ChangeTracker = None
+
 
 class ExecutionTracer:
     """
@@ -43,6 +49,15 @@ class ExecutionTracer:
         self.queue = queue.Queue()
         self.logging_service = LoggingService(config, self.queue)
         self.logging_service.start()
+        
+        # Initialize change tracker for change attribution
+        self.change_tracker = None
+        if ChangeTracker is not None:
+            try:
+                self.change_tracker = ChangeTracker()
+            except Exception:
+                # If change tracking fails to initialize, continue without it
+                self.change_tracker = None
         
         # Context tracking
         self.current_context: Dict[str, Any] = {}
@@ -167,6 +182,14 @@ class ExecutionTracer:
             **self.current_context.copy(),  # Include current context
             **kwargs  # Include event-specific data
         }
+        
+        # Add change metadata to session_start events
+        if event_type == 'session_start' and self.change_tracker:
+            try:
+                entry['change_metadata'] = self.change_tracker.get_change_metadata()
+            except Exception:
+                # If change tracking fails, continue without it
+                pass
         
         return entry
     

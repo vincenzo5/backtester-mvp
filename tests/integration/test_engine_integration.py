@@ -40,7 +40,7 @@ class TestPrepareBacktestData(unittest.TestCase):
             'close': prices,
             'volume': np.random.randint(1000000, 10000000, 500)
         }, index=dates)
-        self.df.iloc[0]['open'] = base_price
+        self.df.at[self.df.index[0], 'open'] = base_price
     
     def test_prepare_backtest_data_adds_indicators(self):
         """Test that prepare_backtest_data adds indicator columns."""
@@ -108,7 +108,7 @@ class TestRunBacktestIntegration(unittest.TestCase):
             'close': prices,
             'volume': np.random.randint(1000000, 10000000, 500)
         }, index=dates)
-        self.df.iloc[0]['open'] = base_price
+        self.df.at[self.df.index[0], 'open'] = base_price
         
         # Prepare data with indicators
         strategy_params = self.config.get_strategy_config().parameters

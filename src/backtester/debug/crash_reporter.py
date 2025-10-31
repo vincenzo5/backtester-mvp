@@ -187,9 +187,20 @@ class CrashReporter:
         if len(existing_reports) >= self.config.crash_reports.max_reports:
             # Cleanup oldest reports
             self._cleanup_old_reports(keep_count=self.config.crash_reports.max_reports - 1)
+            # Refresh list after cleanup to avoid stale file references
+            existing_reports = list(self.crash_report_dir.glob('crash_*.json'))
         
-        # Check size limit
-        total_size_mb = sum(f.stat().st_size for f in existing_reports) / (1024 * 1024)
+        # Check size limit - use only files that still exist
+        # Handle race condition where files may be deleted between glob() and stat()
+        total_size_mb = 0
+        for f in existing_reports:
+            try:
+                if f.exists():
+                    total_size_mb += f.stat().st_size / (1024 * 1024)
+            except (FileNotFoundError, OSError):
+                # File was deleted between glob() and stat() - skip it
+                continue
+        
         if total_size_mb >= self.config.crash_reports.max_total_size_mb:
             # Cleanup until under limit
             self._cleanup_old_reports(target_size_mb=self.config.crash_reports.max_total_size_mb * 0.8)

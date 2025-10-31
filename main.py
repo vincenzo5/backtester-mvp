@@ -9,6 +9,7 @@ import sys
 import time
 import logging
 from pathlib import Path
+from datetime import datetime
 
 # Configure logging (INFO level - set to DEBUG for troubleshooting)
 logging.basicConfig(
@@ -125,6 +126,21 @@ def main():
     # Print config loading info
     output.print_config_loading(config_time)
     
+    # Initialize session tracking
+    session_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+    session_start_time = time.time()
+    
+    # Get hardware profile
+    from backtester.backtest.execution.hardware import HardwareProfile
+    hardware = HardwareProfile.get_or_create()
+    
+    # Emit session_start event
+    if _debug_tracer:
+        _debug_tracer.trace('session_start',
+                          "Starting backtesting session",
+                          session_id=session_id,
+                          hardware_signature=hardware.signature)
+    
     # Get strategy class
     strategy_class = get_strategy_class(config.get_strategy_name())
     
@@ -160,6 +176,36 @@ def main():
                 print(f"    Avg OOS Return: {result.avg_oos_return_pct:.2f}%, Windows: {result.successful_windows}/{result.total_windows}")
         
         print("="*100)
+    
+    # Calculate session metrics
+    session_time = time.time() - session_start_time
+    total_workflows = len(wf_results) if wf_results else 0
+    
+    # Calculate total backtests from workflow results
+    total_backtests = 0
+    successful_backtests = 0
+    failed_backtests = 0
+    skipped_backtests = 0
+    
+    if wf_results:
+        for result in wf_results:
+            total_backtests += result.total_windows
+            successful_backtests += result.successful_windows
+            failed_backtests += (result.total_windows - result.successful_windows)
+    
+    # Emit session_end event
+    if _debug_tracer:
+        _debug_tracer.trace('session_end',
+                          "Session complete",
+                          session_id=session_id,
+                          performance={
+                              'total_wall_time_seconds': session_time,
+                              'total_workflows': total_workflows,
+                              'total_backtests': total_backtests,
+                              'successful_backtests': successful_backtests,
+                              'failed_backtests': failed_backtests,
+                              'skipped_backtests': skipped_backtests
+                          })
     
     # Shutdown debug components
     if _debug_tracer:

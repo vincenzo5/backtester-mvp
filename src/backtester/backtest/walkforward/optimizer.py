@@ -288,6 +288,15 @@ class WindowOptimizer:
                         except Exception:
                             trades = []
                     
+                    # Diagnostic: Log warning if trades_log is empty when filters are configured
+                    if not trades and self.filter_config:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(
+                            f"trades_log is empty but filter_config is non-empty: {self.filter_config}. "
+                            f"This may indicate trades were not logged properly, or no trades occurred during backtest."
+                        )
+                    
                     # Filter trades
                     filtered_trades = apply_filters_to_trades(
                         trades,

@@ -134,7 +134,15 @@ def temp_config_dir():
     }
     data_quality_config = {
         'data_quality': {
-            'weights': {},
+            'weights': {
+                'coverage': 0.30,
+                'integrity': 0.25,
+                'gaps': 0.20,
+                'completeness': 0.15,
+                'consistency': 0.08,
+                'volume': 0.01,
+                'outliers': 0.01
+            },
             'thresholds': {},
             'warning_threshold': 70.0,
             'liveliness_cache_days': 30,

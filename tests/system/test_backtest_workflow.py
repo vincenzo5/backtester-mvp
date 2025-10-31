@@ -50,7 +50,7 @@ class TestBacktestWorkflow(unittest.TestCase):
             'close': prices,
             'volume': np.random.randint(1000000, 10000000, 1000)
         }, index=dates)
-        self.test_df.iloc[0]['open'] = base_price
+        self.test_df.at[self.test_df.index[0], 'open'] = base_price
         
         # Write to cache
         write_cache('BTC/USD', '1h', self.test_df)
