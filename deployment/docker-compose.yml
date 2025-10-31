@@ -1,7 +1,8 @@
 services:
   # Scheduler service - runs continuously and updates data daily
   scheduler:
-    build:
+    image: ghcr.io/vincenzo5/backtester-mvp:latest
+    build:  # Keep as fallback for local development
       context: ..
       dockerfile: deployment/Dockerfile
     container_name: data-scheduler
