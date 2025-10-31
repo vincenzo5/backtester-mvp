@@ -54,12 +54,12 @@ class ConfigValidator:
         
         # Validate each domain
         self.validate_data(config.get('data', {}), result, metadata)
-        self.validate_backtest(config.get('backtest', {}), result, metadata)
         self.validate_trading(config.get('trading', {}), result)
         self.validate_strategy(config.get('strategy', {}), result)
         self.validate_data_quality(config.get('data_quality', {}), result)
         self.validate_parallel(config.get('parallel', {}), result)
-        self.validate_walkforward(config.get('walkforward', {}), result, config.get('backtest', {}))
+        self.validate_walkforward(config.get('walkforward', {}), result, metadata)
+        self.validate_debug(config.get('debug', {}), result)
         
         return result
     
@@ -91,63 +91,6 @@ class ConfigValidator:
                 pd.to_datetime(config['historical_start_date'])
             except (ValueError, TypeError):
                 result.add_error("'data.historical_start_date' must be a valid date string")
-    
-    def validate_backtest(self, config: Dict[str, Any], result: ValidationResult, metadata: Dict[str, Any] = None):
-        """Validate backtest configuration."""
-        if not config:
-            result.add_error("Missing 'backtest' configuration section")
-            return
-        
-        # Validate required fields
-        required_fields = ['start_date', 'end_date', 'initial_capital']
-        for field in required_fields:
-            if field not in config:
-                result.add_error(f"Missing required field 'backtest.{field}'")
-        
-        # Validate dates
-        if 'start_date' in config and 'end_date' in config:
-            try:
-                start = pd.to_datetime(config['start_date'])
-                end = pd.to_datetime(config['end_date'])
-                
-                if end <= start:
-                    result.add_error("'backtest.end_date' must be after 'backtest.start_date'")
-                
-                if start > pd.Timestamp.now():
-                    result.add_warning("'backtest.start_date' is in the future")
-            except (ValueError, TypeError) as e:
-                result.add_error(f"Invalid date format in backtest configuration: {e}")
-        
-        # Validate initial_capital
-        if 'initial_capital' in config:
-            try:
-                capital = float(config['initial_capital'])
-                if capital <= 0:
-                    result.add_error("'backtest.initial_capital' must be positive")
-            except (ValueError, TypeError):
-                result.add_error("'backtest.initial_capital' must be a number")
-        
-        # Validate verbose (optional)
-        if 'verbose' in config and not isinstance(config['verbose'], bool):
-            result.add_error("'backtest.verbose' must be a boolean")
-        
-        # Validate symbols (optional, can be None)
-        if 'symbols' in config and config['symbols'] is not None:
-            if not isinstance(config['symbols'], list):
-                result.add_error("'backtest.symbols' must be a list or null")
-            elif metadata and 'top_markets' in metadata:
-                invalid_symbols = [s for s in config['symbols'] if s not in metadata['top_markets']]
-                if invalid_symbols:
-                    result.add_warning(f"Symbols not in metadata: {invalid_symbols}")
-        
-        # Validate timeframes (optional, can be None)
-        if 'timeframes' in config and config['timeframes'] is not None:
-            if not isinstance(config['timeframes'], list):
-                result.add_error("'backtest.timeframes' must be a list or null")
-            elif metadata and 'timeframes' in metadata:
-                invalid_tfs = [tf for tf in config['timeframes'] if tf not in metadata['timeframes']]
-                if invalid_tfs:
-                    result.add_warning(f"Timeframes not in metadata: {invalid_tfs}")
     
     def validate_trading(self, config: Dict[str, Any], result: ValidationResult):
         """Validate trading configuration."""
@@ -303,17 +246,82 @@ class ConfigValidator:
             except (ValueError, TypeError):
                 result.add_error("'parallel.cpu_reserve_cores' must be an integer")
     
-    def validate_walkforward(self, config: Dict[str, Any], result: ValidationResult, backtest_config: Dict[str, Any] = None):
+    def validate_walkforward(self, config: Dict[str, Any], result: ValidationResult, metadata: Dict[str, Any] = None):
         """Validate walk-forward optimization configuration."""
         if not config:
-            return  # Walk-forward config is optional
+            result.add_error("Missing 'walkforward' configuration section")
+            return
         
-        # Validate enabled
-        if 'enabled' in config and not isinstance(config['enabled'], bool):
-            result.add_error("'walkforward.enabled' must be a boolean")
+        # Validate start_date
+        if 'start_date' not in config:
+            result.add_error("Missing required field 'walkforward.start_date'")
+        else:
+            try:
+                pd.to_datetime(config['start_date'])
+            except (ValueError, TypeError):
+                result.add_error("'walkforward.start_date' must be a valid date string (YYYY-MM-DD)")
         
-        if not config.get('enabled', False):
-            return  # Skip further validation if disabled
+        # Validate end_date
+        if 'end_date' not in config:
+            result.add_error("Missing required field 'walkforward.end_date'")
+        else:
+            try:
+                pd.to_datetime(config['end_date'])
+            except (ValueError, TypeError):
+                result.add_error("'walkforward.end_date' must be a valid date string (YYYY-MM-DD)")
+        
+        # Validate date range logic
+        if 'start_date' in config and 'end_date' in config:
+            try:
+                start = pd.to_datetime(config['start_date'])
+                end = pd.to_datetime(config['end_date'])
+                if start >= end:
+                    result.add_error("'walkforward.start_date' must be before 'walkforward.end_date'")
+            except (ValueError, TypeError):
+                pass  # Already caught above
+        
+        # Validate initial_capital
+        if 'initial_capital' not in config:
+            result.add_error("Missing required field 'walkforward.initial_capital'")
+        else:
+            try:
+                capital = float(config['initial_capital'])
+                if capital <= 0:
+                    result.add_error("'walkforward.initial_capital' must be positive")
+            except (ValueError, TypeError):
+                result.add_error("'walkforward.initial_capital' must be a number")
+        
+        # Validate verbose
+        if 'verbose' in config and not isinstance(config['verbose'], bool):
+            result.add_error("'walkforward.verbose' must be a boolean")
+        
+        # Validate symbols
+        if 'symbols' in config:
+            symbols = config['symbols']
+            if symbols is not None:
+                if not isinstance(symbols, (str, list)):
+                    result.add_error("'walkforward.symbols' must be a string or list of strings")
+                elif isinstance(symbols, list):
+                    for i, symbol in enumerate(symbols):
+                        if not isinstance(symbol, str):
+                            result.add_error(f"'walkforward.symbols[{i}]' must be a string")
+                        elif metadata and 'top_markets' in metadata:
+                            if symbol not in metadata['top_markets']:
+                                result.add_warning(f"Symbol '{symbol}' not found in metadata.top_markets")
+        
+        # Validate timeframes
+        if 'timeframes' in config:
+            timeframes = config['timeframes']
+            if timeframes is not None:
+                if not isinstance(timeframes, (str, list)):
+                    result.add_error("'walkforward.timeframes' must be a string or list of strings")
+                elif isinstance(timeframes, list):
+                    for i, tf in enumerate(timeframes):
+                        if not isinstance(tf, str):
+                            result.add_error(f"'walkforward.timeframes[{i}]' must be a string")
+                        elif metadata and 'timeframes' in metadata:
+                            if tf not in metadata['timeframes']:
+                                result.add_warning(f"Timeframe '{tf}' not found in metadata.timeframes")
         
         # Validate periods
         if 'periods' in config:
@@ -366,17 +374,144 @@ class ConfigValidator:
                             except (ValueError, TypeError):
                                 pass  # Already caught above
         
-        # Validate periods fit within backtest date range
-        if backtest_config and 'start_date' in backtest_config and 'end_date' in backtest_config:
-            try:
-                backtest_start = pd.to_datetime(backtest_config['start_date'])
-                backtest_end = pd.to_datetime(backtest_config['end_date'])
-                backtest_duration = (backtest_end - backtest_start).days
+        # Validate filters (optional)
+        if 'filters' in config:
+            filters = config['filters']
+            if filters is not None:
+                if not isinstance(filters, (str, list)):
+                    result.add_error("'walkforward.filters' must be a string or list of strings")
+                elif isinstance(filters, list):
+                    for i, f in enumerate(filters):
+                        if not isinstance(f, str):
+                            result.add_error(f"'walkforward.filters[{i}]' must be a string, got {type(f).__name__}")
+    
+    def validate_debug(self, config: Dict[str, Any], result: ValidationResult):
+        """Validate debug configuration."""
+        if not config:
+            return  # Debug config is optional
+        
+        # Validate enabled
+        if 'enabled' in config and not isinstance(config['enabled'], bool):
+            result.add_error("'debug.enabled' must be a boolean")
+        
+        # Validate tracing
+        if 'tracing' in config:
+            tracing = config['tracing']
+            if not isinstance(tracing, dict):
+                result.add_error("'debug.tracing' must be a dictionary")
+            else:
+                if 'enabled' in tracing and not isinstance(tracing['enabled'], bool):
+                    result.add_error("'debug.tracing.enabled' must be a boolean")
                 
-                if 'periods' in config:
-                    # Basic check - this could be more sophisticated
-                    # For now, just warn if period strings look too large
-                    pass  # Could add period parsing and validation here
-            except (ValueError, TypeError):
-                pass  # Date validation already done in validate_backtest
+                if 'level' in tracing:
+                    valid_levels = ['minimal', 'standard', 'detailed']
+                    if tracing['level'] not in valid_levels:
+                        result.add_error(f"'debug.tracing.level' must be one of {valid_levels}")
+                
+                if 'sample_rate' in tracing:
+                    try:
+                        rate = float(tracing['sample_rate'])
+                        if rate <= 0 or rate > 1.0:
+                            result.add_error("'debug.tracing.sample_rate' must be between 0 and 1.0")
+                    except (ValueError, TypeError):
+                        result.add_error("'debug.tracing.sample_rate' must be a number")
+        
+        # Validate crash_reports
+        if 'crash_reports' in config:
+            crash_reports = config['crash_reports']
+            if not isinstance(crash_reports, dict):
+                result.add_error("'debug.crash_reports' must be a dictionary")
+            else:
+                if 'enabled' in crash_reports and not isinstance(crash_reports['enabled'], bool):
+                    result.add_error("'debug.crash_reports.enabled' must be a boolean")
+                
+                # Validate max_reports
+                if 'max_reports' in crash_reports:
+                    try:
+                        max_reports = int(crash_reports['max_reports'])
+                        if max_reports <= 0:
+                            result.add_error("'debug.crash_reports.max_reports' must be positive")
+                    except (ValueError, TypeError):
+                        result.add_error("'debug.crash_reports.max_reports' must be an integer")
+                
+                # Validate max_total_size_mb
+                if 'max_total_size_mb' in crash_reports:
+                    try:
+                        size = float(crash_reports['max_total_size_mb'])
+                        if size <= 0:
+                            result.add_error("'debug.crash_reports.max_total_size_mb' must be positive")
+                    except (ValueError, TypeError):
+                        result.add_error("'debug.crash_reports.max_total_size_mb' must be a number")
+                
+                # Validate min_free_disk_mb
+                if 'min_free_disk_mb' in crash_reports:
+                    try:
+                        free = float(crash_reports['min_free_disk_mb'])
+                        if free < 0:
+                            result.add_error("'debug.crash_reports.min_free_disk_mb' must be >= 0")
+                    except (ValueError, TypeError):
+                        result.add_error("'debug.crash_reports.min_free_disk_mb' must be a number")
+                
+                # Validate auto_capture
+                if 'auto_capture' in crash_reports:
+                    auto_capture = crash_reports['auto_capture']
+                    if not isinstance(auto_capture, dict):
+                        result.add_error("'debug.crash_reports.auto_capture' must be a dictionary")
+                    else:
+                        # Validate triggers
+                        if 'triggers' in auto_capture:
+                            triggers = auto_capture['triggers']
+                            if not isinstance(triggers, list):
+                                result.add_error("'debug.crash_reports.auto_capture.triggers' must be a list")
+                            else:
+                                valid_triggers = [
+                                    'exception', 'zero_trades', 'validation_error',
+                                    'memory_warning', 'filter_error', 'indicator_error',
+                                    'data_alignment_error'
+                                ]
+                                for trigger in triggers:
+                                    if trigger not in valid_triggers:
+                                        result.add_warning(f"Unknown trigger '{trigger}' (will be ignored)")
+                        
+                        # Validate min_severity
+                        if 'min_severity' in auto_capture:
+                            valid_severities = ['error', 'warning', 'info']
+                            if auto_capture['min_severity'] not in valid_severities:
+                                result.add_error(f"'debug.crash_reports.auto_capture.min_severity' must be one of {valid_severities}")
+        
+        # Validate logging
+        if 'logging' in config:
+            logging = config['logging']
+            if not isinstance(logging, dict):
+                result.add_error("'debug.logging' must be a dictionary")
+            else:
+                # Validate execution_trace_file
+                if 'execution_trace_file' in logging and not isinstance(logging['execution_trace_file'], str):
+                    result.add_error("'debug.logging.execution_trace_file' must be a string")
+                
+                # Validate crash_report_dir
+                if 'crash_report_dir' in logging and not isinstance(logging['crash_report_dir'], str):
+                    result.add_error("'debug.logging.crash_report_dir' must be a string")
+                
+                # Validate rotation
+                if 'rotation' in logging:
+                    rotation = logging['rotation']
+                    if not isinstance(rotation, dict):
+                        result.add_error("'debug.logging.rotation' must be a dictionary")
+                    else:
+                        if 'max_bytes' in rotation:
+                            try:
+                                max_bytes = int(rotation['max_bytes'])
+                                if max_bytes <= 0:
+                                    result.add_error("'debug.logging.rotation.max_bytes' must be positive")
+                            except (ValueError, TypeError):
+                                result.add_error("'debug.logging.rotation.max_bytes' must be an integer")
+                        
+                        if 'backup_count' in rotation:
+                            try:
+                                backup_count = int(rotation['backup_count'])
+                                if backup_count < 0:
+                                    result.add_error("'debug.logging.rotation.backup_count' must be >= 0")
+                            except (ValueError, TypeError):
+                                result.add_error("'debug.logging.rotation.backup_count' must be an integer")
 

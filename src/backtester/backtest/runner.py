@@ -10,9 +10,7 @@ from typing import Type, List
 import pandas as pd
 
 from backtester.config import ConfigManager
-from backtester.backtest.result import RunResults
 from backtester.backtest.execution.hardware import HardwareProfile
-from backtester.backtest.execution.parallel import ParallelExecutor
 from backtester.cli.output import ConsoleOutput
 from backtester.backtest.walkforward.runner import WalkForwardRunner
 from backtester.backtest.walkforward.results import WalkForwardResults
@@ -34,63 +32,6 @@ class BacktestRunner:
         self.config = config
         self.output = output
     
-    def _get_combinations(self):
-        """
-        Get all symbol/timeframe combinations to test.
-        
-        Returns:
-            list: List of (symbol, timeframe) tuples
-        """
-        symbols = self.config.get_symbols()
-        timeframes = self.config.get_timeframes()
-        return list(product(symbols, timeframes))
-    
-    def run_multi_backtest(self, strategy_class: Type) -> RunResults:
-        """
-        Run backtests for all symbol/timeframe combinations using parallel execution.
-        
-        Args:
-            strategy_class: Strategy class to use for backtesting
-        
-        Returns:
-            RunResults: Aggregated results from all backtest runs
-        """
-        # Get dynamic combinations from config
-        symbols = self.config.get_symbols()
-        timeframes = self.config.get_timeframes()
-        combinations = self._get_combinations()
-        num_combinations = len(combinations)
-        
-        # Print combinations info
-        self.output.print_combinations_info(
-            len(symbols),
-            len(timeframes),
-            num_combinations
-        )
-        
-        # Get or create hardware profile (cached after first run)
-        hardware = HardwareProfile.get_or_create()
-        
-        # Calculate optimal workers
-        parallel_mode = self.config.get_parallel_mode()
-        manual_workers = self.config.get_manual_workers()
-        memory_safety_factor = self.config.get_memory_safety_factor()
-        cpu_reserve_cores = self.config.get_cpu_reserve_cores()
-        
-        num_workers = hardware.calculate_optimal_workers(
-            num_combinations,
-            mode=parallel_mode,
-            manual_workers=manual_workers,
-            memory_safety_factor=memory_safety_factor,
-            cpu_reserve_cores=cpu_reserve_cores
-        )
-        
-        # Execute using parallel executor
-        executor = ParallelExecutor(num_workers, self.config, self.output)
-        run_results = executor.execute(combinations, strategy_class)
-        
-        return run_results
-    
     def run_walkforward_analysis(self, strategy_class: Type) -> List[WalkForwardResults]:
         """
         Run walk-forward optimization for all symbol/timeframe combinations.
@@ -103,9 +44,9 @@ class BacktestRunner:
         """
         from backtester.data.cache_manager import read_cache
         
-        symbols = self.config.get_symbols()
-        timeframes = self.config.get_timeframes()
-        combinations = self._get_combinations()
+        symbols = self.config.get_walkforward_symbols()
+        timeframes = self.config.get_walkforward_timeframes()
+        combinations = list(product(symbols, timeframes))
         
         # Print combinations info
         self.output.print_combinations_info(
@@ -119,7 +60,18 @@ class BacktestRunner:
         walkforward_runner = WalkForwardRunner(self.config, self.output)
         all_results = []
         
+        # Import debug components
+        from backtester.debug import get_tracer, get_crash_reporter
+        tracer = get_tracer()
+        crash_reporter = get_crash_reporter()
+
         for symbol, timeframe in combinations:
+            # Set context for symbol/timeframe combination
+            if tracer:
+                tracer.set_context(symbol=symbol, timeframe=timeframe)
+                tracer.trace('combination_start', 
+                            f"Starting walk-forward for {symbol} {timeframe}")
+            
             try:
                 # Load data
                 df = read_cache(symbol, timeframe)
@@ -148,6 +100,12 @@ class BacktestRunner:
                     self.output.print_walkforward_summary(wf_result)
                 
             except Exception as e:
+                # Capture exception with context
+                if crash_reporter and crash_reporter.should_capture('exception', e, severity='error'):
+                    crash_reporter.capture('exception', e, 
+                                          context={'symbol': symbol, 'timeframe': timeframe},
+                                          severity='error')
+                
                 self.output.error_message(
                     symbol,
                     timeframe,

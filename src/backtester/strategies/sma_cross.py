@@ -80,9 +80,13 @@ class SMACrossStrategy(BaseStrategy):
     def notify_order(self, order):
         """Handle order notifications."""
         if order.status in [order.Submitted, order.Accepted]:
+            # Still call parent for consistency (though it will return early)
+            super().notify_order(order)
             return
         
         if order.status in [order.Completed]:
+            # Call parent first to populate trades_log
+            super().notify_order(order)
             # Order details
             # Note: executed.price already includes slippage (applied by Backtrader broker)
             price = order.executed.price
@@ -121,10 +125,10 @@ class SMACrossStrategy(BaseStrategy):
                 self.log(f'EXECUTION: SELL({abs_size}) @ ${price:.2f} | Net: ${total_cost:.2f} | Fee: {fee_pct:.2f}% | '
                         f'Cash: ${cash_after:.2f} | Value: ${portfolio_value:.2f}')
         
-        elif order.status in [order.Canceled, order.Margin, order.Rejected] and self.params.printlog:
-            self.log('Order Canceled/Margin/Rejected')
-        
-        self.order = None
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            # Call parent for consistency
+            super().notify_order(order)
+            # Additional logging if needed is handled by parent
     
     def stop(self):
         """Called at the end of backtesting."""

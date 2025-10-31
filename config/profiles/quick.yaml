@@ -1,6 +1,18 @@
 # Quick test configuration (overrides default configs when --quick flag is used)
-backtest:
+walkforward:
   symbols: [BTC/USD]  # Single symbol for quick testing
-  timeframes: [1h]     # Single timeframe for quick testing
+  timeframes: [1h]    # Single timeframe for quick testing
   verbose: true  # Detailed output for quick tests
+  periods: ["1M/2W"]  # Single period (short for quick test)
+  fitness_functions: ["np_avg_dd"]  # Single fitness function
+  filters: ["volatility_regime_atr"]  # Single filter
+  parameter_ranges:
+    fast_period:
+      start: 10
+      end: 15
+      step: 5  # Only 2 values: [10, 15]
+    slow_period:
+      start: 20
+      end: 25
+      step: 5  # Only 2 values: [20, 25]
 

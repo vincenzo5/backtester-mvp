@@ -43,6 +43,7 @@ class WalkForwardResults:
     timeframe: str
     period_str: str  # e.g., "1Y/6M"
     fitness_function: str
+    filter_config: Dict[str, str] = field(default_factory=dict)  # Active filter configuration (e.g., {'volatility_regime_atr': 'high'})
     
     # Per-window results
     window_results: List[WalkForwardWindowResult] = field(default_factory=list)
@@ -98,6 +99,7 @@ class WalkForwardResults:
             'timeframe': self.timeframe,
             'period_str': self.period_str,
             'fitness_function': self.fitness_function,
+            'filter_config': self.filter_config,
             'total_windows': self.total_windows,
             'successful_windows': self.successful_windows,
             'total_oos_return_pct': self.total_oos_return_pct,

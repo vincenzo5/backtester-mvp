@@ -1,20 +1,29 @@
 # Walk-Forward Optimization Settings
 walkforward:
-  enabled: true  # Toggle walk-forward mode on/off (true for walk-forward, false for single backtest)
+  # Date range for walk-forward analysis
+  start_date: "2022-01-01"  # Format: YYYY-MM-DD
+  end_date: "2025-10-27"
+  initial_capital: 100000.0  # Fractional positions supported, so $100k works with any price
+  
+  # Markets to test
+  symbols: [BTC/USD]  # Can test multiple markets
+  timeframes: [1d]    # Can test multiple timeframes
+  
+  # Output verbosity
+  verbose: false  # Minimal output for multi-run tests
   
   # Period specification (in-sample/out-of-sample)
   # Format: "1Y/6M" = 1 year in-sample, 6 months out-of-sample
   # Supported: Y (years), M (months), W (weeks), D (days)
   # Can test multiple period combinations
-  periods: ["3M/1M", "6M/3M"]  # Shorter periods for the available ~10 months of data
+  periods: ["3M/1M"]  # Shorter periods for the available ~10 months of data
   
   # Fitness functions for selecting best parameters in each window
   # Options: net_profit, sharpe_ratio, max_dd, profit_factor, np_avg_dd
   # Must be a list (even for single function)
-  fitness_functions: ["np_avg_dd", "net_profit"]
+  fitness_functions: ["np_avg_dd"]
   
   # Parameter ranges for optimization (grid search with step size)
-  # Only used when walkforward.enabled is true
   parameter_ranges:
     fast_period:
       start: 10
@@ -24,4 +33,11 @@ walkforward:
       start: 40
       end: 60
       step: 20  # Smaller range for quicker testing: [40, 60]
-
+  
+  # Filters to apply during walk-forward optimization
+  # Each filter is self-contained (logic + parameters in filter file)
+  # Filters are tested in cartesian product + baseline (no filters)
+  # Example: ['volatility_regime_atr'] will test: high, normal, low, none, and baseline
+  filters:
+    - volatility_regime_atr
+    # - volatility_regime_stddev  # Commented out = not used

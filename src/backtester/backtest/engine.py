@@ -53,7 +53,7 @@ Extending:
 import backtrader as bt
 import time
 import pandas as pd
-from typing import Optional
+from typing import Optional, List
 
 
 class EnrichedPandasData(bt.feeds.PandasData):
@@ -139,7 +139,7 @@ class EnrichedPandasData(bt.feeds.PandasData):
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
 
-def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dict, symbol: Optional[str] = None) -> pd.DataFrame:
+def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dict, symbol: Optional[str] = None, filter_names: Optional[List[str]] = None) -> pd.DataFrame:
     """
     Prepare DataFrame for backtest by computing indicators and aligning data sources.
     
@@ -148,19 +148,22 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
     2. Computes all indicators and adds to DataFrame
     3. Gets required data sources from strategy class
     4. Fetches and aligns all external data
-    5. Returns enriched DataFrame ready for backtesting
+    5. Optionally computes filter classifications if filter_names provided
+    6. Returns enriched DataFrame ready for backtesting
     
     Args:
         df: OHLCV DataFrame with datetime index
         strategy_class: Strategy class (must have get_required_indicators/get_required_data_sources methods)
         strategy_params: Dictionary of strategy parameters
         symbol: Optional trading pair symbol (e.g., 'BTC/USD') for data source providers
+        filter_names: Optional list of filter names to compute and add to DataFrame
     
     Returns:
         Enriched DataFrame with:
         - Original OHLCV columns (open, high, low, close, volume)
         - Indicator columns (e.g., SMA_20, RSI_14)
         - External data columns (e.g., onchain_active_addresses)
+        - Filter columns (e.g., volatility_regime_atr) if filter_names provided
     
     Example:
         from backtester.backtest.engine import prepare_backtest_data
@@ -175,6 +178,14 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
     if df.empty:
         return df
     
+    # Get debug components
+    from backtester.debug import get_tracer, get_crash_reporter
+    tracer = get_tracer()
+    crash_reporter = get_crash_reporter()
+    
+    if tracer:
+        tracer.trace_function_entry('prepare_backtest_data', symbol=symbol)
+    
     result_df = df.copy()
     
     # Step 1: Compute indicators
@@ -186,6 +197,11 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
             from indicators import IndicatorLibrary
             lib = IndicatorLibrary()
             result_df = lib.compute_all(result_df, indicator_specs)
+            
+            if tracer:
+                tracer.trace('indicators_computed', 
+                           f"Computed {len(indicator_specs)} indicators",
+                           indicator_count=len(indicator_specs))
     except AttributeError:
         # Strategy doesn't implement get_required_indicators - that's okay, skip
         pass
@@ -193,6 +209,15 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
         # Log but don't fail - some strategies might not need indicators
         import warnings
         warnings.warn(f"Error computing indicators: {str(e)}")
+        
+        # Capture indicator error
+        if crash_reporter and crash_reporter.should_capture('indicator_error', e, severity='error'):
+            crash_reporter.capture('indicator_error', e, 
+                                  context={'symbol': symbol, 'strategy_params': strategy_params},
+                                  severity='error')
+        
+        if tracer:
+            tracer.trace_error(e, context={'step': 'indicator_computation'})
     
     # Step 2: Fetch and align third-party data sources
     try:
@@ -223,6 +248,15 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
                         # Log but continue with other providers
                         import warnings
                         warnings.warn(f"Error fetching data from {provider.__class__.__name__}: {str(e)}")
+                        
+                        # Capture data alignment error
+                        if crash_reporter and crash_reporter.should_capture('data_alignment_error', e, severity='error'):
+                            crash_reporter.capture('data_alignment_error', e,
+                                                   context={'symbol': data_symbol, 'provider': provider.__class__.__name__},
+                                                   severity='error')
+                        
+                        if tracer:
+                            tracer.trace_error(e, context={'step': 'data_alignment', 'provider': provider.__class__.__name__})
                         continue
     except AttributeError:
         # Strategy doesn't implement get_required_data_sources - that's okay, skip
@@ -231,6 +265,42 @@ def prepare_backtest_data(df: pd.DataFrame, strategy_class, strategy_params: dic
         # Log but don't fail
         import warnings
         warnings.warn(f"Error fetching data sources: {str(e)}")
+    
+    # Step 3: Compute filters if requested
+    # Note: Filters are typically computed in WalkForwardRunner once per dataset
+    # This allows them to be added here if needed for consistency
+    if filter_names:
+        try:
+            from backtester.filters.registry import get_filter
+            for filter_name in filter_names:
+                # Skip if filter column already exists (already computed)
+                if filter_name in result_df.columns:
+                    continue
+                
+                filter_class = get_filter(filter_name)
+                if filter_class is None:
+                    import warnings
+                    warnings.warn(f"Filter '{filter_name}' not found in registry, skipping")
+                    continue
+                
+                filter_instance = filter_class()
+                regime_series = filter_instance.compute_classification(result_df)
+                result_df[filter_name] = regime_series
+        except Exception as e:
+            import warnings
+            warnings.warn(f"Error computing filters: {str(e)}")
+            
+            # Capture filter error
+            if crash_reporter and crash_reporter.should_capture('filter_error', e, severity='error'):
+                crash_reporter.capture('filter_error', e,
+                                      context={'symbol': symbol, 'filter_names': filter_names},
+                                      severity='error')
+            
+            if tracer:
+                tracer.trace_error(e, context={'step': 'filter_computation'})
+    
+    if tracer:
+        tracer.trace_function_exit('prepare_backtest_data')
     
     return result_df
 
@@ -261,19 +331,29 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     """
     backtest_start_time = time.time()
     
-    if verbose:
-        print("\n" + "="*60)
-        print("RUNNING BACKTEST")
-        print("="*60 + "\n")
-    
     # Try to get symbol from config (first symbol if multiple)
     symbol = None
     try:
-        symbols = config_manager.get_symbols()
+        symbols = config_manager.get_walkforward_symbols()
         if symbols:
             symbol = symbols[0]  # Use first symbol if available
     except Exception:
         pass  # If we can't get symbol, use default in prepare_backtest_data
+    
+    # Get debug components
+    from backtester.debug import get_tracer, get_crash_reporter
+    tracer = get_tracer()
+    crash_reporter = get_crash_reporter()
+    
+    if tracer:
+        tracer.set_context(symbol=symbol, strategy_params=strategy_params)
+        tracer.trace_function_entry('run_backtest', symbol=symbol)
+        tracer.trace('backtest_start', "Starting backtest")
+    
+    if verbose:
+        print("\n" + "="*60)
+        print("RUNNING BACKTEST")
+        print("="*60 + "\n")
     
     # Get strategy parameters
     # If strategy_params is None, use empty dict - backtrader will use strategy code defaults
@@ -300,13 +380,29 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
     
-    # Wrap strategy class to track equity curve (mark-to-market at each bar)
+    # Wrap strategy class to track equity curve and trades (mark-to-market at each bar)
     class EquityTrackingStrategy(strategy_class):
         def __init__(self):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"EquityTrackingStrategy.__init__ called, id(self) = {id(self)}")
+            
             super().__init__()
+            
             # Initialize equity curve tracking if not already present
             if not hasattr(self, 'equity_curve'):
                 self.equity_curve = []
+            else:
+                logger.debug(f"EquityTrackingStrategy.__init__: equity_curve already exists with length {len(self.equity_curve)}")
+            
+            # Initialize trade tracking for filtering
+            if not hasattr(self, 'trades_log'):
+                self.trades_log = []
+                logger.debug(f"EquityTrackingStrategy.__init__: Created new trades_log, id = {id(self.trades_log)}")
+            else:
+                logger.debug(f"EquityTrackingStrategy.__init__: trades_log already exists with length {len(self.trades_log)}, id = {id(self.trades_log)}")
+            # Track current position for trade logging
+            self._current_position = None  # Dict with entry info or None
         
         def next(self):
             super().next()
@@ -318,6 +414,70 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
                 'date': current_datetime,
                 'value': portfolio_value
             })
+        
+        def notify_order(self, order):
+            """Track trades with entry/exit dates for filtering."""
+            # Call parent's notify_order first
+            super().notify_order(order)
+            
+            if order.status == order.Completed:
+                current_datetime = self.data.datetime.datetime(0)
+                
+                if order.isbuy() and order.executed.size > 0:
+                    # Entering a position
+                    self._current_position = {
+                        'entry_date': current_datetime,
+                        'entry_price': order.executed.price,
+                        'entry_size': abs(order.executed.size),
+                        'entry_value': order.executed.value
+                    }
+                
+                elif order.issell() and self._current_position:
+                    # Exiting a position
+                    exit_price = order.executed.price
+                    exit_size = abs(order.executed.size)
+                    exit_value = order.executed.value
+                    
+                    # Calculate PnL
+                    # PnL = (exit_price - entry_price) * size - commissions
+                    entry_price = self._current_position['entry_price']
+                    entry_size = self._current_position['entry_size']
+                    
+                    # Gross profit/loss
+                    gross_pnl = (exit_price - entry_price) * entry_size
+                    # Net PnL including commissions
+                    net_pnl = exit_value - self._current_position['entry_value'] - order.executed.comm - (self._current_position.get('entry_commission', 0) or 0)
+                    
+                    # Log completed trade
+                    trade = {
+                        'entry_date': self._current_position['entry_date'],
+                        'exit_date': current_datetime,
+                        'entry_price': entry_price,
+                        'exit_price': exit_price,
+                        'size': entry_size,
+                        'pnl': net_pnl,
+                        'gross_pnl': gross_pnl,
+                        'entry_commission': self._current_position.get('entry_commission', 0) or 0,
+                        'exit_commission': order.executed.comm
+                    }
+                    self.trades_log.append(trade)
+                    
+                    # Clear current position
+                    self._current_position = None
+                
+                elif order.isbuy() and self._current_position:
+                    # Adding to position - update entry info (average price)
+                    # This handles partial fills and position scaling
+                    total_size = self._current_position['entry_size'] + abs(order.executed.size)
+                    total_value = self._current_position['entry_value'] + order.executed.value
+                    avg_price = total_value / total_size if total_size > 0 else self._current_position['entry_price']
+                    
+                    self._current_position['entry_size'] = total_size
+                    self._current_position['entry_value'] = total_value
+                    self._current_position['entry_price'] = avg_price
+                    if 'entry_commission' not in self._current_position:
+                        self._current_position['entry_commission'] = 0
+                    self._current_position['entry_commission'] += order.executed.comm
     
     # Add wrapped strategy with parameters
     # If strategy_params provided, override defaults; otherwise use strategy code defaults
@@ -344,7 +504,7 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     cerebro.adddata(data)
     
     # Set our desired cash start
-    cerebro.broker.setcash(config_manager.get_initial_capital())
+    cerebro.broker.setcash(config_manager.get_walkforward_initial_capital())
     
     # Set commission
     commission = config_manager.get_commission()
@@ -383,7 +543,15 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     # run_result is a list of strategy objects directly
     strategy_instance = run_result[0]
     
-    initial_value = config_manager.get_initial_capital()
+    # Debug: Check trades_log immediately after run
+    import logging
+    logger = logging.getLogger(__name__)
+    if hasattr(strategy_instance, 'trades_log'):
+        logger.debug(f"run_backtest: After cerebro.run() - trades_log length = {len(strategy_instance.trades_log)}, id = {id(strategy_instance.trades_log)}")
+    else:
+        logger.debug(f"run_backtest: After cerebro.run() - strategy_instance does not have trades_log")
+    
+    initial_value = config_manager.get_walkforward_initial_capital()
     final_value = cerebro.broker.getvalue()
     
     backtest_time = time.time() - backtest_start_time
@@ -403,6 +571,30 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
         start_date=start_date,
         end_date=end_date
     )
+    
+    # Check for zero trades (condition-based trigger)
+    if metrics.num_trades == 0:
+        if crash_reporter and crash_reporter.should_capture('zero_trades', severity='warning'):
+            context = {
+                'symbol': symbol,
+                'strategy_params': strategy_params,
+                'metrics': {'total_return_pct': metrics.total_return_pct, 'num_trades': metrics.num_trades},
+                'data_shape': df.shape if not df.empty else None,
+                'data_date_range': (
+                    str(df.index[0]) if not df.empty else None,
+                    str(df.index[-1]) if not df.empty else None
+                ) if not df.empty else None
+            }
+            crash_reporter.capture('zero_trades', context=context, severity='warning')
+        
+        if tracer:
+            tracer.trace('zero_trades_detected', "Backtest completed with 0 trades", num_trades=0)
+    
+    if tracer:
+        tracer.trace('backtest_end', "Backtest completed",
+                    num_trades=metrics.num_trades,
+                    total_return=metrics.total_return_pct,
+                    execution_time=backtest_time)
     
     if verbose:
         print(f'Final Portfolio Value: {final_value:.2f}')
@@ -430,7 +622,12 @@ def run_backtest(config_manager, df, strategy_class, verbose=False, strategy_par
     
     # Return metrics objects if requested (for walk-forward optimization)
     if return_metrics:
+        if tracer:
+            tracer.trace_function_exit('run_backtest', duration=backtest_time)
         return result_dict, cerebro, strategy_instance, metrics
+    
+    if tracer:
+        tracer.trace_function_exit('run_backtest', duration=backtest_time)
     
     return result_dict
 

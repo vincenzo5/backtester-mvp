@@ -140,8 +140,18 @@ def calculate_metrics(
             sharpe_analyzer = None
     
     # Extract trade data
+    # Debug: Check trades_log before extraction
+    import logging
+    logger = logging.getLogger(__name__)
+    if hasattr(strategy_instance, 'trades_log'):
+        logger.debug(f"calculate_metrics: Before extraction - trades_log length = {len(strategy_instance.trades_log)}, content = {strategy_instance.trades_log}")
+    else:
+        logger.debug(f"calculate_metrics: Before extraction - strategy_instance does not have trades_log")
+    
     trade_list = _extract_trade_list(trade_analyzer, strategy_instance, num_trades_default=0)
     num_trades = len(trade_list) if trade_list else getattr(strategy_instance, 'buy_count', 0)
+    
+    logger.debug(f"calculate_metrics: After extraction - trade_list length = {len(trade_list)}, num_trades = {num_trades}")
     
     # Calculate trade statistics
     if trade_list:
@@ -193,14 +203,35 @@ def calculate_metrics(
             max_consecutive_losses = trade_analyzer.get('lost', {}).get('streak', {}).get('current', 0)
         else:
             # No trade data available - set all trade-related metrics to zero
-            # Log warning about missing trade data
+            # Log warning only if there were actually completed trades but extraction failed
             import logging
             logger = logging.getLogger(__name__)
-            if num_trades > 0:
+            
+            # Check if there were actually completed trades (not just buy orders)
+            # Use analyzer data if available to determine completed trades
+            completed_trades = 0
+            if trade_analyzer:
+                completed_trades = trade_analyzer.get('won', {}).get('total', 0) + trade_analyzer.get('lost', {}).get('total', 0)
+            
+            # Only warn if there were completed trades but trades_log is empty
+            if completed_trades > 0:
+                # Enhanced debug information
+                has_trades_log = hasattr(strategy_instance, 'trades_log')
+                trades_log_len = len(getattr(strategy_instance, 'trades_log', [])) if has_trades_log else 0
+                buy_count = getattr(strategy_instance, 'buy_count', 'N/A')
+                
                 logger.warning(
-                    f"Trade extraction failed for {num_trades} trades. "
+                    f"Trade extraction failed for {completed_trades} completed trades. "
                     f"Using zero defaults for trade statistics. "
-                    f"Ensure strategies implement trades_log or TradeAnalyzer provides trade data."
+                    f"Ensure strategies implement trades_log or TradeAnalyzer provides trade data. "
+                    f"[Debug: has_trades_log={has_trades_log}, trades_log_len={trades_log_len}, "
+                    f"buy_count={buy_count}, completed_trades={completed_trades}]"
+                )
+            # If num_trades > 0 but no completed trades, it's likely just open positions - don't warn
+            elif num_trades > 0:
+                logger.debug(
+                    f"No completed trades found (buy_count={num_trades} but no SELL orders completed). "
+                    f"This is normal if positions remain open at backtest end."
                 )
             gross_profit = 0.0
             gross_loss = 0.0
@@ -602,37 +633,87 @@ def _extract_trade_list(trade_analyzer: Optional[Dict[str, Any]], strategy_insta
     Note: Backtrader's TradeAnalyzer provides aggregate statistics but not individual trades.
     We try to extract from strategy_instance.trades_log first, then fall back to analyzer aggregates.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     trade_list = []
     
+    # Debug: Check if trades_log exists
+    has_trades_log = hasattr(strategy_instance, 'trades_log')
+    logger.debug(f"Trade extraction: hasattr(trades_log) = {has_trades_log}")
+    
     # First, try strategy trades_log (if strategy tracks individual trades)
-    if hasattr(strategy_instance, 'trades_log') and strategy_instance.trades_log:
-        for trade in strategy_instance.trades_log:
-            if isinstance(trade, dict):
-                pnl = trade.get('pnl', 0.0)
-                entry_date = trade.get('entry_date', None)
-                exit_date = trade.get('exit_date', None)
-                trade_list.append({
-                    'pnl': pnl,
-                    'entry_date': entry_date,
-                    'exit_date': exit_date,
-                    'duration': (exit_date - entry_date).days if entry_date and exit_date else 0
-                })
-        if trade_list:
-            return trade_list
+    if has_trades_log:
+        trades_log_value = getattr(strategy_instance, 'trades_log', None)
+        logger.debug(f"Trade extraction: trades_log type = {type(trades_log_value)}, length = {len(trades_log_value) if trades_log_value else 0}")
+        
+        if trades_log_value:
+            logger.debug(f"Trade extraction: trades_log contains {len(trades_log_value)} entries")
+            for i, trade in enumerate(trades_log_value):
+                logger.debug(f"Trade extraction: Processing trade {i}: type = {type(trade)}, is_dict = {isinstance(trade, dict)}")
+                
+                if isinstance(trade, dict):
+                    pnl = trade.get('pnl', 0.0)
+                    entry_date = trade.get('entry_date', None)
+                    exit_date = trade.get('exit_date', None)
+                    
+                    logger.debug(f"Trade extraction: Trade {i} - pnl = {pnl}, entry_date = {entry_date} (type: {type(entry_date)}), exit_date = {exit_date} (type: {type(exit_date)})")
+                    
+                    # Calculate duration with error handling
+                    duration = 0
+                    try:
+                        if entry_date and exit_date:
+                            # Handle different date types
+                            import pandas as pd
+                            if isinstance(entry_date, pd.Timestamp) and isinstance(exit_date, pd.Timestamp):
+                                duration = (exit_date - entry_date).days
+                            elif hasattr(entry_date, '__sub__') and hasattr(exit_date, '__sub__'):
+                                delta = exit_date - entry_date
+                                if hasattr(delta, 'days'):
+                                    duration = delta.days
+                                else:
+                                    duration = int(delta.total_seconds() / 86400)
+                            logger.debug(f"Trade extraction: Trade {i} - duration calculated = {duration} days")
+                    except Exception as e:
+                        logger.warning(f"Trade extraction: Failed to calculate duration for trade {i}: {e} (entry_date: {entry_date}, exit_date: {exit_date})")
+                    
+                    trade_list.append({
+                        'pnl': pnl,
+                        'entry_date': entry_date,
+                        'exit_date': exit_date,
+                        'duration': duration
+                    })
+                    logger.debug(f"Trade extraction: Trade {i} added to trade_list")
+                else:
+                    logger.warning(f"Trade extraction: Trade {i} is not a dict, skipping. Type: {type(trade)}, Value: {trade}")
+            
+            if trade_list:
+                logger.debug(f"Trade extraction: Successfully extracted {len(trade_list)} trades from trades_log")
+                return trade_list
+            else:
+                logger.debug(f"Trade extraction: trades_log had {len(trades_log_value)} entries but none were valid dicts or extraction failed")
+        else:
+            logger.debug(f"Trade extraction: trades_log exists but is empty or falsy")
+    else:
+        logger.debug(f"Trade extraction: strategy_instance does not have trades_log attribute")
     
     # Fallback: try to reconstruct from analyzer if it has individual trade data
     # Note: Standard TradeAnalyzer doesn't provide individual trades, but some analyzers might
     if trade_analyzer:
+        logger.debug(f"Trade extraction: Attempting fallback to trade_analyzer (type: {type(trade_analyzer)})")
         try:
             # Check if analyzer has individual trades (some custom analyzers might)
             if isinstance(trade_analyzer, dict):
                 # Standard TradeAnalyzer provides aggregate stats, not individual trades
                 # We can't construct individual trades from aggregates alone
+                logger.debug(f"Trade extraction: trade_analyzer is a dict but doesn't provide individual trades")
                 pass
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Trade extraction: Exception checking trade_analyzer: {e}")
             pass
     
     # Return empty list - calculate_metrics will use analyzer aggregates as fallback
+    logger.debug(f"Trade extraction: Returning empty trade_list (will use analyzer aggregates)")
     return trade_list
 
 

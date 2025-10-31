@@ -9,15 +9,6 @@ from dataclasses import dataclass
 
 
 @dataclass
-class BacktestConfig:
-    """Backtest configuration."""
-    start_date: str
-    end_date: str
-    initial_capital: float
-    verbose: bool = False
-
-
-@dataclass
 class TradingConfig:
     """Trading configuration."""
     use_exchange_fees: bool
@@ -48,6 +39,55 @@ class DataQualityConfig:
     gap_filling_schedule: str
 
 
+@dataclass
+class TracingConfig:
+    """Tracing configuration."""
+    enabled: bool
+    level: str  # minimal, standard, detailed
+    sample_rate: float
+
+
+@dataclass
+class AutoCaptureConfig:
+    """Auto-capture configuration for crash reports."""
+    triggers: List[str]
+    min_severity: str  # error, warning, info
+
+
+@dataclass
+class CrashReportsConfig:
+    """Crash reports configuration."""
+    enabled: bool
+    max_reports: int
+    max_total_size_mb: float
+    min_free_disk_mb: float
+    auto_capture: AutoCaptureConfig
+
+
+@dataclass
+class LogRotationConfig:
+    """Log rotation configuration."""
+    max_bytes: int
+    backup_count: int
+
+
+@dataclass
+class DebugLoggingConfig:
+    """Debug logging configuration."""
+    execution_trace_file: str
+    crash_report_dir: str
+    rotation: LogRotationConfig
+
+
+@dataclass
+class DebugConfig:
+    """Debug configuration."""
+    enabled: bool
+    tracing: TracingConfig
+    crash_reports: CrashReportsConfig
+    logging: DebugLoggingConfig
+
+
 class ConfigAccessor:
     """
     Type-safe access to configuration values.
@@ -69,75 +109,65 @@ class ConfigAccessor:
         """Get the exchange name (from data config)."""
         return self.config.get('data', {}).get('exchange', 'coinbase')
     
-    # Backtest accessors
-    def get_symbols(self) -> List[str]:
+    # Walk-forward accessors
+    def get_walkforward_start_date(self) -> str:
+        """Get start date for walk-forward optimization."""
+        return self.config.get('walkforward', {}).get('start_date')
+    
+    def get_walkforward_end_date(self) -> str:
+        """Get end date for walk-forward optimization."""
+        return self.config.get('walkforward', {}).get('end_date')
+    
+    def get_walkforward_initial_capital(self) -> float:
+        """Get initial capital for walk-forward optimization."""
+        capital = self.config.get('walkforward', {}).get('initial_capital')
+        return float(capital) if capital is not None else 100000.0
+    
+    def get_walkforward_symbols(self) -> List[str]:
         """
-        Get list of symbols to test.
+        Get symbols for walk-forward optimization.
         
-        Returns all symbols from metadata if symbols is null in config,
-        otherwise returns the filtered list.
+        Returns symbols from walkforward config, validates against metadata.
         """
-        symbols = self.config.get('backtest', {}).get('symbols')
+        symbols = self.config.get('walkforward', {}).get('symbols')
         
         if symbols is None:
-            # Use all symbols from metadata
-            return self.metadata.get('top_markets', [])
+            return []
         elif isinstance(symbols, str):
             return [symbols]
         elif isinstance(symbols, list):
             # Validate against metadata
             valid_symbols = self.metadata.get('top_markets', [])
-            return [s for s in symbols if s in valid_symbols]
+            if valid_symbols:
+                return [s for s in symbols if s in valid_symbols]
+            return symbols
         else:
             return []
     
-    def get_timeframes(self) -> List[str]:
+    def get_walkforward_timeframes(self) -> List[str]:
         """
-        Get list of timeframes to test.
+        Get timeframes for walk-forward optimization.
         
-        Returns all timeframes from metadata if timeframes is null in config,
-        otherwise returns the filtered list.
+        Returns timeframes from walkforward config, validates against metadata.
         """
-        timeframes = self.config.get('backtest', {}).get('timeframes')
+        timeframes = self.config.get('walkforward', {}).get('timeframes')
         
         if timeframes is None:
-            # Use all timeframes from metadata
-            return self.metadata.get('timeframes', [])
+            return []
         elif isinstance(timeframes, str):
             return [timeframes]
         elif isinstance(timeframes, list):
             # Validate against metadata
             valid_timeframes = self.metadata.get('timeframes', [])
-            return [tf for tf in timeframes if tf in valid_timeframes]
+            if valid_timeframes:
+                return [tf for tf in timeframes if tf in valid_timeframes]
+            return timeframes
         else:
             return []
     
-    # Backtest accessors
-    def get_backtest_config(self) -> BacktestConfig:
-        """Get backtest configuration as typed object."""
-        backtest = self.config.get('backtest', {})
-        return BacktestConfig(
-            start_date=backtest['start_date'],
-            end_date=backtest['end_date'],
-            initial_capital=float(backtest['initial_capital']),
-            verbose=backtest.get('verbose', False)
-        )
-    
-    def get_start_date(self) -> str:
-        """Get the backtest start date."""
-        return self.config['backtest']['start_date']
-    
-    def get_end_date(self) -> str:
-        """Get the backtest end date."""
-        return self.config['backtest']['end_date']
-    
-    def get_initial_capital(self) -> float:
-        """Get initial capital for backtesting."""
-        return float(self.config['backtest']['initial_capital'])
-    
-    def get_verbose(self) -> bool:
-        """Get verbose output setting."""
-        return self.config.get('backtest', {}).get('verbose', False)
+    def get_walkforward_verbose(self) -> bool:
+        """Get verbose flag for walk-forward optimization."""
+        return self.config.get('walkforward', {}).get('verbose', False)
     
     # Trading accessors
     def get_trading_config(self) -> TradingConfig:
@@ -234,10 +264,6 @@ class ConfigAccessor:
         return int(self.config.get('parallel', {}).get('cpu_reserve_cores', 1))
     
     # Walk-forward accessors
-    def is_walkforward_enabled(self) -> bool:
-        """Check if walk-forward optimization is enabled."""
-        return self.config.get('walkforward', {}).get('enabled', False)
-    
     def get_walkforward_periods(self) -> List[str]:
         """Get walk-forward period configurations (e.g., ["1Y/6M"])."""
         return self.config.get('walkforward', {}).get('periods', [])
@@ -261,4 +287,76 @@ class ConfigAccessor:
     def get_parameter_ranges(self) -> Dict[str, Dict[str, int]]:
         """Get parameter ranges for optimization (grid search)."""
         return self.config.get('walkforward', {}).get('parameter_ranges', {})
+    
+    def get_walkforward_filters(self) -> List[str]:
+        """
+        Get list of filter names for walk-forward optimization.
+        
+        Returns list of filter names from configuration (e.g., ['volatility_regime_atr'])
+        Empty list if not configured or filters disabled.
+        
+        Returns:
+            List of filter names (strings)
+            Empty list if filters not configured
+        
+        Example:
+            filters = config.get_walkforward_filters()
+            # ['volatility_regime_atr', 'volatility_regime_stddev']
+        """
+        filters = self.config.get('walkforward', {}).get('filters', [])
+        
+        # Handle different input formats
+        if filters is None:
+            return []
+        elif isinstance(filters, str):
+            return [filters]  # Single filter name as string
+        elif isinstance(filters, list):
+            # Validate all are strings
+            valid_filters = []
+            for f in filters:
+                if isinstance(f, str):
+                    valid_filters.append(f)
+                else:
+                    import warnings
+                    warnings.warn(f"Ignoring invalid filter (must be string): {f}")
+            return valid_filters
+        else:
+            return []
+    
+    # Debug accessors
+    def get_debug_config(self) -> DebugConfig:
+        """Get debug configuration as typed object."""
+        debug = self.config.get('debug', {})
+        tracing = debug.get('tracing', {})
+        crash_reports = debug.get('crash_reports', {})
+        auto_capture = crash_reports.get('auto_capture', {})
+        logging = debug.get('logging', {})
+        rotation = logging.get('rotation', {})
+        
+        return DebugConfig(
+            enabled=debug.get('enabled', True),
+            tracing=TracingConfig(
+                enabled=tracing.get('enabled', True),
+                level=tracing.get('level', 'standard'),
+                sample_rate=float(tracing.get('sample_rate', 1.0))
+            ),
+            crash_reports=CrashReportsConfig(
+                enabled=crash_reports.get('enabled', True),
+                max_reports=int(crash_reports.get('max_reports', 50)),
+                max_total_size_mb=float(crash_reports.get('max_total_size_mb', 500)),
+                min_free_disk_mb=float(crash_reports.get('min_free_disk_mb', 1000)),
+                auto_capture=AutoCaptureConfig(
+                    triggers=auto_capture.get('triggers', []),
+                    min_severity=auto_capture.get('min_severity', 'error')
+                )
+            ),
+            logging=DebugLoggingConfig(
+                execution_trace_file=logging.get('execution_trace_file', 'artifacts/logs/backtest_execution.jsonl'),
+                crash_report_dir=logging.get('crash_report_dir', 'artifacts/logs/crash_reports'),
+                rotation=LogRotationConfig(
+                    max_bytes=int(rotation.get('max_bytes', 10485760)),
+                    backup_count=int(rotation.get('backup_count', 5))
+                )
+            )
+        )
 

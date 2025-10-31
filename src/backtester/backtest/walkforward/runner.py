@@ -68,8 +68,8 @@ class WalkForwardRunner:
             raise ValueError("No fitness functions configured")
         
         # Get date range
-        start_date = pd.to_datetime(self.config.get_start_date())
-        end_date = pd.to_datetime(self.config.get_end_date())
+        start_date = pd.to_datetime(self.config.get_walkforward_start_date())
+        end_date = pd.to_datetime(self.config.get_walkforward_end_date())
         
         # Handle timezone mismatch - if data is timezone-aware, make start/end match
         if not data_df.empty and data_df.index.tz is not None:
@@ -85,86 +85,131 @@ class WalkForwardRunner:
         if data_df.empty:
             raise ValueError(f"No data in date range {start_date} to {end_date}")
         
+        # CRITICAL: Pre-compute filters ONCE before any loops
+        # Get filter names from config
+        filter_names = self.config.get_walkforward_filters()
+        
+        # Compute filters if requested
+        if filter_names:
+            from backtester.filters.registry import get_filter
+            from backtester.debug import get_crash_reporter
+            crash_reporter = get_crash_reporter()
+            
+            for filter_name in filter_names:
+                try:
+                    filter_class = get_filter(filter_name)
+                    if filter_class is None:
+                        import warnings
+                        warnings.warn(f"Filter '{filter_name}' not found in registry, skipping")
+                        continue
+                    
+                    # Compute filter classification on full dataset
+                    filter_instance = filter_class()
+                    regime_series = filter_instance.compute_classification(data_df)
+                    data_df[filter_name] = regime_series
+                except Exception as e:
+                    if crash_reporter and crash_reporter.should_capture('filter_error', e, severity='error'):
+                        crash_reporter.capture('filter_error', e,
+                                              context={'filter_name': filter_name, 
+                                                      'symbol': symbol, 
+                                                      'timeframe': timeframe},
+                                              severity='error')
+                    raise  # Re-raise to fail fast
+        
+        # Generate filter configurations (cartesian product + baseline)
+        if filter_names:
+            from backtester.filters.generator import generate_filter_configurations
+            filter_configurations = generate_filter_configurations(filter_names)
+        else:
+            # No filters - just baseline
+            filter_configurations = [{}]
+        
         all_results = []
         
-        # Loop over all periods
-        for period_str in periods:
-            # Generate walk-forward windows for this period
-            windows = generate_windows_from_period(
-                start_date,
-                end_date,
-                period_str,
-                data_df=data_df
-            )
-            
-            if not windows:
-                if self.output:
-                    self.output.skip_message(
-                        symbol,
-                        timeframe,
-                        f"Period {period_str}: no valid windows",
-                        use_tqdm=False
-                    )
-                continue
-            
-            # Create separate results object for each fitness function
-            results_by_fitness = {
-                fitness_func: WalkForwardResults(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    period_str=period_str,
-                    fitness_function=fitness_func
+        # OUTER LOOP: Iterate through filter configurations
+        for filter_config in filter_configurations:
+            # Loop over all periods
+            for period_str in periods:
+                # Generate walk-forward windows for this period
+                windows = generate_windows_from_period(
+                    start_date,
+                    end_date,
+                    period_str,
+                    data_df=data_df
                 )
-                for fitness_func in fitness_functions
-            }
-            
-            period_start_time = time.time()
-            
-            # Process each window
-            for i, window in enumerate(windows):
-                if self.output:
-                    self.output.print_walkforward_window_progress(i + 1, len(windows), window)
-            
-                try:
-                    # Convert window dates to pandas Timestamp, handling timezone
-                    window_start_ts = pd.to_datetime(window.in_sample_start)
-                    window_end_ts = pd.to_datetime(window.in_sample_end)
-                    
-                    # If data is timezone-aware, ensure window dates match
-                    if not data_df.empty and data_df.index.tz is not None:
-                        if window_start_ts.tz is None:
-                            window_start_ts = window_start_ts.tz_localize('UTC')
-                        if window_end_ts.tz is None:
-                            window_end_ts = window_end_ts.tz_localize('UTC')
-                    
-                    # Step 1: Optimize on in-sample data (once for all fitness functions)
-                    optimizer = WindowOptimizer(
-                        config=self.config,
-                        strategy_class=strategy_class,
-                        data_df=data_df,
-                        window_start=window_start_ts,
-                        window_end=window_end_ts,
-                        parameter_ranges=parameter_ranges,
-                        fitness_functions=fitness_functions,
-                        verbose=self.config.get_verbose()
+                
+                if not windows:
+                    if self.output:
+                        self.output.skip_message(
+                            symbol,
+                            timeframe,
+                            f"Period {period_str}: no valid windows",
+                            use_tqdm=False
+                        )
+                    continue
+                
+                # Create separate results object for each fitness function
+                # Each result includes the filter_config
+                results_by_fitness = {
+                    fitness_func: WalkForwardResults(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        period_str=period_str,
+                        fitness_function=fitness_func,
+                        filter_config=filter_config
                     )
+                    for fitness_func in fitness_functions
+                }
+                
+                period_start_time = time.time()
+                
+                # Process each window
+                for i, window in enumerate(windows):
+                    if self.output:
+                        self.output.print_walkforward_window_progress(i + 1, len(windows), window)
                     
-                    # Get optimal worker count for optimization
-                    num_param_combos = len(generate_parameter_combinations(parameter_ranges))
-                    hardware = HardwareProfile.get_or_create()
-                    opt_workers = min(
-                        hardware.calculate_optimal_workers(num_param_combos),
-                        4  # Limit optimization workers to avoid overhead
-                    )
-                    
-                    # Optimize once, get best params for each fitness function
-                    best_by_fitness = optimizer.optimize(max_workers=opt_workers)
-                    
-                    # Step 2: Test each fitness function's best params on OOS data
-                    for fitness_func, (best_params, best_is_metrics, opt_time) in best_by_fitness.items():
-                        # Prepare out-of-sample data with warm-up based on BEST parameters
-                        oos_start = pd.to_datetime(window.out_sample_start)
-                        oos_end = pd.to_datetime(window.out_sample_end)
+                    try:
+                        # Convert window dates to pandas Timestamp, handling timezone
+                        window_start_ts = pd.to_datetime(window.in_sample_start)
+                        window_end_ts = pd.to_datetime(window.in_sample_end)
+                        
+                        # If data is timezone-aware, ensure window dates match
+                        if not data_df.empty and data_df.index.tz is not None:
+                            if window_start_ts.tz is None:
+                                window_start_ts = window_start_ts.tz_localize('UTC')
+                            if window_end_ts.tz is None:
+                                window_end_ts = window_end_ts.tz_localize('UTC')
+                        
+                        # Step 1: Optimize on in-sample data (once for all fitness functions)
+                        # Pass filter_config to optimizer
+                        optimizer = WindowOptimizer(
+                            config=self.config,
+                            strategy_class=strategy_class,
+                            data_df=data_df,
+                            window_start=window_start_ts,
+                            window_end=window_end_ts,
+                            parameter_ranges=parameter_ranges,
+                            fitness_functions=fitness_functions,
+                            filter_config=filter_config,
+                            verbose=self.config.get_walkforward_verbose()
+                        )
+                        
+                        # Get optimal worker count for optimization
+                        num_param_combos = len(generate_parameter_combinations(parameter_ranges))
+                        hardware = HardwareProfile.get_or_create()
+                        opt_workers = min(
+                            hardware.calculate_optimal_workers(num_param_combos),
+                            4  # Limit optimization workers to avoid overhead
+                        )
+                        
+                        # Optimize once, get best params for each fitness function
+                        best_by_fitness = optimizer.optimize(max_workers=opt_workers)
+                        
+                        # Step 2: Test each fitness function's best params on OOS data
+                        for fitness_func, (best_params, best_is_metrics, opt_time) in best_by_fitness.items():
+                            # Prepare out-of-sample data with warm-up based on BEST parameters
+                            oos_start = pd.to_datetime(window.out_sample_start)
+                            oos_end = pd.to_datetime(window.out_sample_end)
                         
                         # If data is timezone-aware, ensure window dates match
                         if not data_df.empty and data_df.index.tz is not None:
@@ -182,6 +227,12 @@ class WalkForwardRunner:
                             # Add extra buffer (20%) for indicator stability
                             warmup_hours = int(max_period * time_diff * 1.2)
                             warmup_start = oos_start - pd.Timedelta(hours=warmup_hours)
+                            # Ensure warmup_start matches timezone of DataFrame index
+                            if not data_df.empty and data_df.index.tz is not None:
+                                if warmup_start.tz is None:
+                                    warmup_start = warmup_start.tz_localize('UTC')
+                                elif warmup_start.tz != data_df.index.tz:
+                                    warmup_start = warmup_start.tz_convert(data_df.index.tz)
                         else:
                             warmup_start = oos_start
                         
@@ -207,6 +258,24 @@ class WalkForwardRunner:
                         self.config._update_strategy_parameters(best_params)
                         
                         try:
+                            # Set walk-forward context for tracer
+                            from backtester.debug import get_tracer
+                            tracer = get_tracer()
+                            if tracer:
+                                tracer.set_context(
+                                    symbol=symbol,
+                                    timeframe=timeframe,
+                                    period=period_str,
+                                    fitness_function=fitness_func,
+                                    filter_config=filter_config,
+                                    window_index=window.window_index,
+                                    window_type='oos'
+                                )
+                                tracer.trace('window_oos_start', 
+                                            f"OOS backtest for window {window.window_index}, {fitness_func}",
+                                            window_start=str(oos_start),
+                                            window_end=str(oos_end))
+                            
                             oos_start_time = time.time()
                             oos_result, oos_cerebro, oos_strategy_instance, oos_metrics = run_backtest(
                                 self.config,
@@ -217,6 +286,48 @@ class WalkForwardRunner:
                                 return_metrics=True  # Return cerebro, strategy, and metrics
                             )
                             oos_time = time.time() - oos_start_time
+                            
+                            # Apply filters to OOS trades if filter_config is provided
+                            if filter_config:
+                                from backtester.filters.applicator import apply_filters_to_trades, recalculate_metrics_with_filtered_trades
+                                
+                                # Extract trades from strategy instance
+                                oos_trades = getattr(oos_strategy_instance, 'trades_log', [])
+                                
+                                # Filter trades
+                                filtered_oos_trades = apply_filters_to_trades(
+                                    oos_trades,
+                                    out_sample_df,
+                                    filter_config
+                                )
+                                
+                                # Recalculate metrics with filtered trades
+                                start_date_py = oos_start.to_pydatetime()
+                                end_date_py = oos_end.to_pydatetime()
+                                initial_capital = self.config.get_walkforward_initial_capital()
+                                
+                                try:
+                                    oos_metrics = recalculate_metrics_with_filtered_trades(
+                                        oos_cerebro,
+                                        oos_strategy_instance,
+                                        initial_capital,
+                                        filtered_oos_trades,
+                                        equity_curve=None,
+                                        start_date=start_date_py,
+                                        end_date=end_date_py
+                                    )
+                                except Exception as e:
+                                    from backtester.debug import get_crash_reporter
+                                    crash_reporter = get_crash_reporter()
+                                    
+                                    if crash_reporter and crash_reporter.should_capture('exception', e, severity='error'):
+                                        crash_reporter.capture('exception', e,
+                                                              context={'step': 'metrics_recalculation',
+                                                                      'filter_config': filter_config,
+                                                                      'window_index': window.window_index,
+                                                                      'filtered_trades_count': len(filtered_oos_trades)},
+                                                              severity='error')
+                                    raise
                             
                             # Calculate walk-forward efficiency (OOS / IS return ratio)
                             from backtester.backtest.walkforward.metrics_calculator import update_walkforward_efficiency
@@ -247,22 +358,39 @@ class WalkForwardRunner:
                         )
                         
                         results_by_fitness[fitness_func].window_results.append(window_result)
+                    
+                    except Exception as e:
+                        # Get debug components
+                        from backtester.debug import get_crash_reporter
+                        crash_reporter = get_crash_reporter()
+                        
+                        if crash_reporter and crash_reporter.should_capture('exception', e, severity='error'):
+                            context = {
+                                'symbol': symbol,
+                                'timeframe': timeframe,
+                                'period': period_str,
+                                'fitness_function': fitness_func,
+                                'filter_config': filter_config,
+                                'window_index': window.window_index,
+                                'window_start': str(window.in_sample_start),
+                                'window_end': str(window.in_sample_end)
+                            }
+                            crash_reporter.capture('exception', e, context, severity='error')
+                        
+                        if self.output:
+                            self.output.error_message(
+                                symbol,
+                                timeframe,
+                                f"Window {i+1} error: {e}",
+                                use_tqdm=False
+                            )
+                        continue
                 
-                except Exception as e:
-                    if self.output:
-                        self.output.error_message(
-                            symbol,
-                            timeframe,
-                            f"Window {i+1} error: {e}",
-                            use_tqdm=False
-                        )
-                    continue
-            
-            # Calculate aggregate metrics for each fitness function's results
-            for fitness_func, result_obj in results_by_fitness.items():
-                result_obj.total_execution_time = time.time() - period_start_time
-                result_obj.calculate_aggregates()
-                all_results.append(result_obj)
+                # Calculate aggregate metrics for each fitness function's results
+                for fitness_func, result_obj in results_by_fitness.items():
+                    result_obj.total_execution_time = time.time() - period_start_time
+                    result_obj.calculate_aggregates()
+                    all_results.append(result_obj)
         
         return all_results
 

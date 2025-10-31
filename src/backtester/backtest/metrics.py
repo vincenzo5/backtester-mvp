@@ -65,7 +65,7 @@ def save_results_csv(results: List[BacktestResult], config_manager, skipped: Lis
             'symbol': skip.symbol,
             'timeframe': skip.timeframe,
             'strategy_name': strategy_name,
-            'initial_capital': config_manager.get_initial_capital(),
+            'initial_capital': config_manager.get_walkforward_initial_capital(),
             'final_value': 'N/A',
             'total_return_pct': 'N/A',
             'num_trades': 'N/A',

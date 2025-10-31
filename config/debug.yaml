@@ -1,0 +1,32 @@
+# Debug Agent Configuration
+debug:
+  enabled: true
+  
+  tracing:
+    enabled: true
+    level: standard  # minimal, standard, detailed
+    sample_rate: 1.0  # 1.0 = all steps, 0.1 = 10% of steps (for detailed level only)
+  
+  crash_reports:
+    enabled: true
+    max_reports: 50
+    max_total_size_mb: 500
+    min_free_disk_mb: 1000
+    auto_capture:
+      triggers:
+        - exception  # Any exception
+        - zero_trades  # After backtest with 0 trades (severity: warning)
+        - validation_error  # Data validation failures (severity varies by context)
+        - memory_warning  # Memory usage above threshold (severity: warning)
+        - filter_error  # Filter application failures (severity: error)
+        - indicator_error  # Indicator computation failures (severity: error)
+        - data_alignment_error  # Data source alignment failures (severity: error)
+      min_severity: error  # Only capture error-level by default (warning/info filtered out)
+  
+  logging:
+    execution_trace_file: artifacts/logs/backtest_execution.jsonl
+    crash_report_dir: artifacts/logs/crash_reports
+    rotation:
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+

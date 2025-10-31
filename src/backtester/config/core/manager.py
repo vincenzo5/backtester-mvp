@@ -97,23 +97,29 @@ class ConfigManager:
         """Get strategy configuration as typed object."""
         return self.accessor.get_strategy_config()
     
-    def get_symbols(self) -> List[str]:
-        """Get list of symbols to test."""
-        return self.accessor.get_symbols()
+    def get_walkforward_start_date(self) -> str:
+        """Get start date for walk-forward optimization."""
+        return self.accessor.get_walkforward_start_date()
     
-    def get_timeframes(self) -> List[str]:
-        """Get list of timeframes to test."""
-        return self.accessor.get_timeframes()
+    def get_walkforward_end_date(self) -> str:
+        """Get end date for walk-forward optimization."""
+        return self.accessor.get_walkforward_end_date()
     
-    def get_backtest_config(self) -> Dict[str, Any]:
-        """Get backtest configuration dictionary."""
-        bt_config = self.accessor.get_backtest_config()
-        return {
-            'start_date': bt_config.start_date,
-            'end_date': bt_config.end_date,
-            'initial_capital': bt_config.initial_capital,
-            'verbose': bt_config.verbose
-        }
+    def get_walkforward_initial_capital(self) -> float:
+        """Get initial capital for walk-forward optimization."""
+        return self.accessor.get_walkforward_initial_capital()
+    
+    def get_walkforward_symbols(self) -> List[str]:
+        """Get symbols for walk-forward optimization."""
+        return self.accessor.get_walkforward_symbols()
+    
+    def get_walkforward_timeframes(self) -> List[str]:
+        """Get timeframes for walk-forward optimization."""
+        return self.accessor.get_walkforward_timeframes()
+    
+    def get_walkforward_verbose(self) -> bool:
+        """Get verbose flag for walk-forward optimization."""
+        return self.accessor.get_walkforward_verbose()
     
     def get_trading_config(self) -> Dict[str, Any]:
         """Get trading configuration dictionary."""
@@ -128,29 +134,13 @@ class ConfigManager:
             'commission_maker': trading_config.commission_maker
         }
     
-    def get_initial_capital(self) -> float:
-        """Get initial capital for backtesting."""
-        return self.accessor.get_initial_capital()
-    
     def get_commission(self) -> float:
         """Get commission rate for backtesting."""
         return self.accessor.get_commission()
     
-    def get_verbose(self) -> bool:
-        """Get verbose output setting."""
-        return self.accessor.get_verbose()
-    
     def get_exchange_name(self) -> str:
         """Get the exchange name."""
         return self.accessor.get_exchange_name()
-    
-    def get_start_date(self) -> str:
-        """Get the backtest start date."""
-        return self.accessor.get_start_date()
-    
-    def get_end_date(self) -> str:
-        """Get the backtest end date."""
-        return self.accessor.get_end_date()
     
     def get_slippage(self) -> float:
         """Get slippage rate."""
@@ -176,10 +166,6 @@ class ConfigManager:
         """Get historical start date for data collection."""
         return self.accessor.get_historical_start_date()
     
-    def is_walkforward_enabled(self) -> bool:
-        """Check if walk-forward optimization is enabled."""
-        return self.accessor.is_walkforward_enabled()
-    
     def get_walkforward_periods(self) -> List[str]:
         """Get walk-forward period configurations (e.g., ["1Y/6M"])."""
         return self.accessor.get_walkforward_periods()
@@ -192,6 +178,10 @@ class ConfigManager:
         """Get parameter ranges for optimization (grid search)."""
         return self.accessor.get_parameter_ranges()
     
+    def get_walkforward_filters(self) -> List[str]:
+        """Get list of filter names for walk-forward optimization."""
+        return self.accessor.get_walkforward_filters()
+    
     def get_data_config(self) -> Dict[str, Any]:
         """Get data configuration dictionary."""
         return self.accessor.get_data_config()
@@ -203,6 +193,10 @@ class ConfigManager:
     def get_data_quality_config(self):
         """Get data quality configuration as typed object."""
         return self.accessor.get_data_quality_config()
+    
+    def get_debug_config(self):
+        """Get debug configuration as typed object."""
+        return self.accessor.get_debug_config()
     
     def get_exchange_metadata(self) -> Dict[str, Any]:
         """Get exchange metadata dictionary."""
@@ -234,7 +228,7 @@ class ConfigManager:
             Dictionary containing serializable config data
         """
         return {
-            'config': self.config,
+            'config': self.config,  # Includes debug config
             'metadata': self.metadata,
             'profile_name': self.profile_name,
             'config_dir': self.config_dir,

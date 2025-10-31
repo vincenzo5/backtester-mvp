@@ -134,8 +134,8 @@ class HardwareProfile:
             config = ConfigManager()
             
             # Try to get first available symbol/timeframe with cached data
-            symbols = config.get_symbols()
-            timeframes = config.get_timeframes()
+            symbols = config.get_walkforward_symbols()
+            timeframes = config.get_walkforward_timeframes()
             
             if not symbols or not timeframes:
                 # No symbols or timeframes configured
@@ -146,10 +146,10 @@ class HardwareProfile:
                 for timeframe in timeframes[:2]:  # Try first 2 timeframes
                     df = read_cache(symbol, timeframe)
                     
-                    # Filter by backtest date range if needed
+                    # Filter by walk-forward date range if needed
                     if not df.empty:
-                        start_date = config.get_start_date()
-                        end_date = config.get_end_date()
+                        start_date = config.get_walkforward_start_date()
+                        end_date = config.get_walkforward_end_date()
                         start_dt = pd.to_datetime(start_date)
                         end_dt = pd.to_datetime(end_date)
                         df = df[(df.index >= start_dt) & (df.index <= end_dt)]

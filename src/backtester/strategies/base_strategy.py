@@ -104,6 +104,8 @@ class BaseStrategy(bt.Strategy):
         """Initialize indicators and other components."""
         # Initialize any indicators or data here
         self.order = None  # Track pending orders
+        self.trades_log = []  # Track individual trades for metrics calculation
+        self.current_trade = None  # Track current open trade
     
     def next(self):
         """
@@ -115,13 +117,85 @@ class BaseStrategy(bt.Strategy):
     
     def notify_order(self, order):
         """Handle order notifications."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug(f"BaseStrategy.notify_order: status={order.status}, isbuy={order.isbuy()}, issell={order.issell()}")
+        
         if order.status in [order.Submitted, order.Accepted]:
+            logger.debug("BaseStrategy.notify_order: Order Submitted/Accepted, returning early")
             return
         
         if order.status in [order.Completed]:
+            import pandas as pd
+            # Get current datetime from data feed (backtrader format)
+            try:
+                # Backtrader provides datetime.datetime(0) for current bar datetime
+                current_date = pd.to_datetime(self.data.datetime.datetime(0))
+            except (AttributeError, TypeError):
+                # Fallback if datetime access fails
+                try:
+                    current_date = pd.to_datetime(self.data.datetime.date(0))
+                except (AttributeError, TypeError):
+                    # Final fallback
+                    from datetime import datetime
+                    current_date = pd.to_datetime(datetime.now())
+            
+            logger.debug(f"BaseStrategy.notify_order: current_date = {current_date}")
+            
             if order.isbuy():
+                # Opening a position - start tracking a trade
+                logger.debug(f"BaseStrategy.notify_order: BUY order - creating current_trade")
+                self.current_trade = {
+                    'entry_date': current_date,
+                    'entry_price': order.executed.price,
+                    'size': order.executed.size,
+                    'entry_commission': order.executed.comm,
+                    'entry_value': order.executed.value
+                }
+                logger.debug(f"BaseStrategy.notify_order: current_trade = {self.current_trade}")
                 self.log(f'BUY EXECUTED, Price: {order.executed.price:.2f}')
             elif order.issell():
+                # Closing a position - complete the trade
+                logger.debug(f"BaseStrategy.notify_order: SELL order - current_trade = {self.current_trade}")
+                if self.current_trade is not None:
+                    exit_price = order.executed.price
+                    exit_size = abs(order.executed.size)
+                    exit_commission = order.executed.comm
+                    exit_value = order.executed.value
+                    
+                    # Calculate PnL
+                    # For long positions: (exit_price - entry_price) * size - commissions
+                    entry_price = self.current_trade['entry_price']
+                    entry_size = self.current_trade['size']
+                    entry_commission = self.current_trade['entry_commission']
+                    
+                    # Use actual sizes to handle partial fills
+                    trade_size = min(entry_size, exit_size)
+                    
+                    # PnL calculation: (exit - entry) * size - all commissions
+                    pnl = (exit_price - entry_price) * trade_size - entry_commission - exit_commission
+                    
+                    # Add completed trade to log
+                    trade_entry = {
+                        'entry_date': self.current_trade['entry_date'],
+                        'exit_date': current_date,
+                        'entry_price': entry_price,
+                        'exit_price': exit_price,
+                        'size': trade_size,
+                        'pnl': pnl,
+                        'entry_commission': entry_commission,
+                        'exit_commission': exit_commission
+                    }
+                    logger.debug(f"BaseStrategy.notify_order: Appending trade to trades_log: {trade_entry}")
+                    logger.debug(f"BaseStrategy.notify_order: trades_log length before append: {len(self.trades_log)}, id(trades_log) = {id(self.trades_log)}, id(self) = {id(self)}")
+                    self.trades_log.append(trade_entry)
+                    logger.debug(f"BaseStrategy.notify_order: trades_log length after append: {len(self.trades_log)}, id(trades_log) = {id(self.trades_log)}")
+                    
+                    self.current_trade = None
+                else:
+                    logger.warning(f"BaseStrategy.notify_order: SELL order but current_trade is None!")
+                
                 self.log(f'SELL EXECUTED, Price: {order.executed.price:.2f}')
         
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:

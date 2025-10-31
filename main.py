@@ -7,13 +7,62 @@ Quick test: python main.py --quick
 
 import sys
 import time
+import logging
+from pathlib import Path
+
+# Configure logging (INFO level - set to DEBUG for troubleshooting)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:%(name)s:%(message)s'
+)
+
+# Store original excepthook for restoration
+_original_excepthook = sys.excepthook
+
+# Add src directory to Python path for imports
+src_path = Path(__file__).parent / 'src'
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
 
 from backtester.cli.parser import parse_arguments
 from backtester.cli.output import ConsoleOutput
 from backtester.config import ConfigManager
 from backtester.backtest.runner import BacktestRunner
-from backtester.backtest.metrics import save_results_csv, save_performance_metrics
 from backtester.strategies import get_strategy_class
+
+# Global debug components (set after config load)
+_debug_tracer = None
+_crash_reporter = None
+
+
+def debug_excepthook(exc_type, exc_value, exc_traceback):
+    """
+    Global exception handler that captures uncaught exceptions.
+    
+    Always captures fatal exceptions synchronously before calling original handler.
+    """
+    global _crash_reporter
+    
+    # Always capture uncaught exceptions if crash reporter available
+    if _crash_reporter:
+        try:
+            exception = exc_value if exc_value else exc_type()
+            context = {'fatal': True, 'uncaught': True}
+            
+            # Capture synchronously (fatal errors)
+            _crash_reporter.capture(
+                'exception',
+                exception=exception,
+                context=context,
+                severity='error',
+                sync=True
+            )
+        except Exception:
+            # Ignore errors in exception handler to prevent infinite loop
+            pass
+    
+    # Call original handler
+    _original_excepthook(exc_type, exc_value, exc_traceback)
 
 
 def validate_dependencies():
@@ -44,8 +93,31 @@ def main():
     config = ConfigManager(profile_name=args.profile)
     config_time = time.time() - config_start
     
+    # Initialize debug components if enabled
+    global _debug_tracer, _crash_reporter
+    debug_config = config.get_debug_config()
+    
+    if debug_config.enabled:
+        from backtester.debug import ExecutionTracer, CrashReporter
+        
+        # Create tracer
+        if debug_config.tracing.enabled:
+            _debug_tracer = ExecutionTracer(debug_config)
+        
+        # Create crash reporter
+        if debug_config.crash_reports.enabled:
+            _crash_reporter = CrashReporter(debug_config, tracer=_debug_tracer)
+            _crash_reporter.start()
+        
+        # Make debug components globally accessible
+        from backtester.debug import set_debug_components
+        set_debug_components(_debug_tracer, _crash_reporter)
+        
+        # Install global exception handler
+        sys.excepthook = debug_excepthook
+    
     # Setup output handler
-    output = ConsoleOutput(verbose=config.get_verbose())
+    output = ConsoleOutput(verbose=config.get_walkforward_verbose())
     
     # Print banner
     output.print_banner(config, quick_mode=args.quick)
@@ -56,62 +128,52 @@ def main():
     # Get strategy class
     strategy_class = get_strategy_class(config.get_strategy_name())
     
-    # Check if walk-forward mode is enabled
-    if config.is_walkforward_enabled():
-        # Run walk-forward optimization
-        from backtester.backtest.runner import BacktestRunner
-        runner = BacktestRunner(config, output)
-        wf_results = runner.run_walkforward_analysis(strategy_class)
+    # Always run walk-forward optimization
+    runner = BacktestRunner(config, output)
+    wf_results = runner.run_walkforward_analysis(strategy_class)
+    
+    # Print overall summary
+    if wf_results:
+        print("\n" + "="*100)
+        print("OVERALL WALK-FORWARD SUMMARY")
+        print("="*100)
+        print(f"Total combinations analyzed: {len(wf_results)}")
+        print(f"Successful: {len([r for r in wf_results if r.successful_windows > 0])}")
         
-        # Print overall summary
+        # Aggregate across all results
         if wf_results:
-            print("\n" + "="*100)
-            print("OVERALL WALK-FORWARD SUMMARY")
-            print("="*100)
-            print(f"Total combinations analyzed: {len(wf_results)}")
-            print(f"Successful: {len([r for r in wf_results if r.successful_windows > 0])}")
-            
-            # Aggregate across all results
-            if wf_results:
-                avg_oos_return = sum(r.avg_oos_return_pct for r in wf_results) / len(wf_results)
-                print(f"Average OOS Return: {avg_oos_return:.2f}%")
-            
-            # Group and display by symbol/timeframe, then period/fitness
-            from collections import defaultdict
-            grouped = defaultdict(list)
-            for result in wf_results:
-                key = f"{result.symbol} {result.timeframe}"
-                grouped[key].append(result)
-            
-            print(f"\nBreakdown by Symbol/Timeframe:")
-            for key, results in grouped.items():
-                print(f"\n{key}:")
-                for result in results:
-                    print(f"  Period: {result.period_str}, Fitness: {result.fitness_function}")
-                    print(f"    Avg OOS Return: {result.avg_oos_return_pct:.2f}%, Windows: {result.successful_windows}/{result.total_windows}")
-            
-            print("="*100)
+            avg_oos_return = sum(r.avg_oos_return_pct for r in wf_results) / len(wf_results)
+            print(f"Average OOS Return: {avg_oos_return:.2f}%")
         
-    else:
-        # Run standard backtests
-        runner = BacktestRunner(config, output)
-        run_results = runner.run_multi_backtest(strategy_class)
+        # Group and display by symbol/timeframe, then period/fitness
+        from collections import defaultdict
+        grouped = defaultdict(list)
+        for result in wf_results:
+            key = f"{result.symbol} {result.timeframe}"
+            grouped[key].append(result)
         
-        # Generate reports and save metrics
-        report_gen_start = time.time()
-        save_results_csv(run_results.results, config, run_results.skipped)
-        report_gen_time = time.time() - report_gen_start
+        print(f"\nBreakdown by Symbol/Timeframe:")
+        for key, results in grouped.items():
+            print(f"\n{key}:")
+            for result in results:
+                print(f"  Period: {result.period_str}, Fitness: {result.fitness_function}")
+                print(f"    Avg OOS Return: {result.avg_oos_return_pct:.2f}%, Windows: {result.successful_windows}/{result.total_windows}")
         
-        # Update report generation time in results
-        run_results.report_generation_time = report_gen_time
-        
-        # Save performance metrics
-        save_performance_metrics(config, run_results.get_metrics())
-        
-        # Print summaries
-        output.print_summary_table(run_results)
-        output.print_performance_summary(run_results)
+        print("="*100)
+    
+    # Shutdown debug components
+    if _debug_tracer:
+        _debug_tracer.shutdown()
+    if _crash_reporter:
+        _crash_reporter.stop()
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    finally:
+        # Ensure cleanup on exit
+        if _crash_reporter:
+            _crash_reporter.stop()
+        if _debug_tracer:
+            _debug_tracer.shutdown()

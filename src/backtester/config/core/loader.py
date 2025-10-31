@@ -20,12 +20,12 @@ class ConfigLoader:
     # Domain-specific config files to load
     DOMAIN_FILES = [
         'data.yaml',
-        'backtest.yaml',
         'trading.yaml',
         'strategy.yaml',
         'data_quality.yaml',
         'parallel.yaml',
         'walkforward.yaml',
+        'debug.yaml',
     ]
     
     def __init__(self, config_dir: str = 'config'):
