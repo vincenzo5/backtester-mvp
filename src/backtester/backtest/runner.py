@@ -32,6 +32,7 @@ class BacktestRunner:
         """
         self.config = config
         self.output = output
+        self.total_data_load_time = 0.0  # Track aggregated data load time
     
     def run_walkforward_analysis(self, strategy_class: Type) -> List[WalkForwardResults]:
         """
@@ -61,6 +62,9 @@ class BacktestRunner:
         walkforward_runner = WalkForwardRunner(self.config, self.output)
         all_results = []
         
+        # Reset data load time tracking
+        self.total_data_load_time = 0.0
+        
         # Import debug components
         from backtester.debug import get_tracer, get_crash_reporter
         tracer = get_tracer()
@@ -84,6 +88,7 @@ class BacktestRunner:
                 data_load_start = time.time()
                 df = read_cache(symbol, timeframe)
                 data_load_time = time.time() - data_load_start
+                self.total_data_load_time += data_load_time
                 
                 if df.empty:
                     self.output.skip_message(

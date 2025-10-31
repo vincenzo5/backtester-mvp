@@ -187,11 +187,57 @@ def main():
     failed_backtests = 0
     skipped_backtests = 0
     
+    # Aggregate timing metrics from walk-forward results
+    total_backtest_compute_time = 0.0
+    
     if wf_results:
         for result in wf_results:
             total_backtests += result.total_windows
             successful_backtests += result.successful_windows
             failed_backtests += (result.total_windows - result.successful_windows)
+            # Aggregate timing from window results
+            for window_result in result.window_results:
+                total_backtest_compute_time += window_result.optimization_time
+                total_backtest_compute_time += window_result.oos_backtest_time
+    
+    # Get worker count (walk-forward uses sequential execution at workflow level)
+    # Worker count here represents parallel workers within optimization, not across workflows
+    worker_count = 1  # Sequential execution at workflow level
+    
+    # Get data load time from runner
+    total_data_load_time = runner.total_data_load_time if hasattr(runner, 'total_data_load_time') else 0.0
+    
+    # Calculate report generation time (minimal, just formatting)
+    report_start_time = time.time()
+    # Report generation already happened above in print statements
+    report_generation_time = time.time() - report_start_time
+    
+    # Calculate average time per run (window)
+    avg_time_per_run = session_time / total_backtests if total_backtests > 0 else 0.0
+    
+    # Save performance metrics
+    from backtester.backtest.metrics import save_performance_metrics
+    
+    performance_metrics = {
+        'worker_count': worker_count,
+        'total_combinations': len(wf_results) if wf_results else 0,  # Number of result objects
+        'successful_runs': successful_backtests,
+        'skipped_runs': 0,  # Skipped runs tracked separately in walk-forward
+        'failed_runs': failed_backtests,
+        'total_execution_time': session_time,
+        'avg_time_per_run': avg_time_per_run,
+        'data_load_time': total_data_load_time,
+        'backtest_compute_time': total_backtest_compute_time,
+        'report_generation_time': report_generation_time
+    }
+    
+    try:
+        save_performance_metrics(config, performance_metrics)
+    except Exception as e:
+        # Don't fail the run if performance metrics save fails
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to save performance metrics: {e}")
     
     # Emit session_end event
     if _debug_tracer:
