@@ -14,7 +14,7 @@
     "first_date": "2020-01-01",
     "last_date": "2021-12-31",
     "candle_count": 17544,
-    "last_updated": "2025-11-01T01:44:45.196062Z"
+    "last_updated": "2025-11-01T14:28:26.116746Z"
   },
   "BTC/USD_1d": {
     "symbol": "BTC/USD",
@@ -22,6 +22,6 @@
     "first_date": "2023-01-01",
     "last_date": "2023-10-27",
     "candle_count": 300,
-    "last_updated": "2025-11-01T01:44:26.869811Z"
+    "last_updated": "2025-11-01T14:28:07.877449Z"
   }
 }
