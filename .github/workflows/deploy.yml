@@ -82,11 +82,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Pull latest image
-        shell: pwsh
+        shell: powershell
         run: docker pull ghcr.io/${{ github.repository_owner }}/backtester-mvp:latest
       
       - name: Deploy with docker-compose
-        shell: pwsh
+        shell: powershell
         run: |
           cd C:\Users\vfnoc\Documents\backtester\deployment
           docker-compose pull
