@@ -329,42 +329,42 @@ def run_update(target_end_date: str = None) -> Dict[str, Any]:
     
     # If earlier error set summary, skip success aggregation
     if summary.get('status') != 'error':
-        # Calculate summary
-        duration = (datetime.utcnow() - start_time).total_seconds()
-        
-        logger.info("")
-        logger.info("=" * 80)
-        logger.info("Daily Update Summary")
-        logger.info("=" * 80)
-        logger.info(f"Duration: {duration:.1f} seconds ({duration/60:.1f} minutes)")
-        logger.info(f"Updated: {updated}")
-        logger.info(f"Skipped: {skipped}")
-        logger.info(f"Failed: {failed}")
-        logger.info(f"Total candles added: {total_candles:,}")
-        logger.info(f"Total API requests: {total_api_requests:,}")
-        if warnings:
-            logger.info(f"Warnings: {len(warnings)}")
-        logger.info("=" * 80)
-        
-        # Update metadata last_updated timestamp
-        metadata_path = Path('config/markets.yaml')
-        with open(metadata_path, 'r') as f:
-            metadata = yaml.safe_load(f)
-        metadata['last_updated'] = datetime.utcnow().isoformat()
-        with open(metadata_path, 'w') as f:
-            yaml.dump(metadata, f, default_flow_style=False, sort_keys=False)
-        
+    # Calculate summary
+    duration = (datetime.utcnow() - start_time).total_seconds()
+    
+    logger.info("")
+    logger.info("=" * 80)
+    logger.info("Daily Update Summary")
+    logger.info("=" * 80)
+    logger.info(f"Duration: {duration:.1f} seconds ({duration/60:.1f} minutes)")
+    logger.info(f"Updated: {updated}")
+    logger.info(f"Skipped: {skipped}")
+    logger.info(f"Failed: {failed}")
+    logger.info(f"Total candles added: {total_candles:,}")
+    logger.info(f"Total API requests: {total_api_requests:,}")
+    if warnings:
+        logger.info(f"Warnings: {len(warnings)}")
+    logger.info("=" * 80)
+    
+    # Update metadata last_updated timestamp
+    metadata_path = Path('config/markets.yaml')
+    with open(metadata_path, 'r') as f:
+        metadata = yaml.safe_load(f)
+    metadata['last_updated'] = datetime.utcnow().isoformat()
+    with open(metadata_path, 'w') as f:
+        yaml.dump(metadata, f, default_flow_style=False, sort_keys=False)
+    
         summary = {
-            'status': 'success',
-            'updated': updated,
-            'skipped': skipped,
-            'failed': failed,
-            'total_candles': total_candles,
-            'total_api_requests': total_api_requests,
-            'warnings': len(warnings),
-            'duration_seconds': duration,
-            'removed_markets': removed_markets
-        }
+        'status': 'success',
+        'updated': updated,
+        'skipped': skipped,
+        'failed': failed,
+        'total_candles': total_candles,
+        'total_api_requests': total_api_requests,
+        'warnings': len(warnings),
+        'duration_seconds': duration,
+        'removed_markets': removed_markets
+    }
 
     # Always release lock
     try:

@@ -39,7 +39,7 @@ $lock = "C:\\Users\\vfnoc\\Documents\\backtester\\artifacts\\locks\\update.lock"
 if (Test-Path $lock) {
   Write-Host "Update in progress; skipping scheduler restart."
 } else {
-  docker-compose up -d scheduler
+docker-compose up -d scheduler
 }
 docker-compose ps
 ```
