@@ -101,6 +101,36 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 2. You should see **"ibuypower-windows"** runner with green **"Idle"** status
 3. If it shows offline, check service status on Windows and runner logs
 
+### 3e. Configure PowerShell Execution Policy
+
+**IMPORTANT:** GitHub Actions requires PowerShell to execute scripts. Windows default execution policy blocks this.
+
+**Run these commands in PowerShell as Administrator:**
+
+```powershell
+# Check current execution policy
+Get-ExecutionPolicy -List
+
+# Set execution policy to allow GitHub Actions scripts
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force
+
+# Verify the change
+Get-ExecutionPolicy -List
+```
+
+**What this does:**
+- `RemoteSigned` allows local scripts (like GitHub Actions) and signed remote scripts
+- This is required for GitHub Actions to execute PowerShell steps
+- Without this, all deployment jobs will fail with "script execution disabled" errors
+
+**Alternative (if you cannot change machine-level policy):**
+```powershell
+# Set for current user only (less secure, but may be necessary)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+```
+
+**Note:** If the runner service runs under a different account, you may need to set the policy for that account specifically.
+
 ## Step 4: Initial Docker Setup Verification
 
 On your iBuyPower machine:
@@ -191,6 +221,51 @@ If all commands work, you're ready for automated deployments!
 3. **Check WSL 2 integration** (if using WSL):
    - Docker Desktop → Settings → Resources → WSL Integration
    - Enable integration for your distro
+
+### PowerShell Execution Policy Error
+
+**Problem:** Deploy job fails with error: "running scripts is disabled on this system" or "PSSecurityException: UnauthorizedAccess".
+
+**Symptoms:**
+- Deploy job fails immediately on first step
+- Error mentions execution policy
+- Error shows path like `C:\actions-runner\_work\_temp\*.ps1`
+
+**Solutions:**
+
+1. **Check current execution policy:**
+   ```powershell
+   Get-ExecutionPolicy -List
+   ```
+   If `LocalMachine` or `CurrentUser` shows `Restricted`, this is the problem.
+
+2. **Fix execution policy (as Administrator):**
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force
+   ```
+
+3. **Verify the fix:**
+   ```powershell
+   Get-ExecutionPolicy -List
+   ```
+   Should show `RemoteSigned` for `LocalMachine` scope.
+
+4. **If you cannot change machine-level policy:**
+   ```powershell
+   # Set for current user (may not work if service uses different account)
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+   ```
+
+5. **Restart runner service after change:**
+   ```powershell
+   cd C:\actions-runner
+   ./svc.cmd stop
+   ./svc.cmd start
+   ```
+
+6. **Trigger new deployment** to verify fix
+
+**Prevention:** Always complete Step 3e during initial setup to avoid this issue.
 
 ### GitHub Actions Deployment Fails
 
