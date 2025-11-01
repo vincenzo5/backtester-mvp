@@ -7,7 +7,7 @@ name = "crypto-backtester"
 version = "0.1.0"
 description = "A simple but powerful cryptocurrency backtesting engine"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
     "ccxt>=4.0.0",
     "backtrader>=1.9.78.123",

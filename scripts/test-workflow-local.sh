@@ -20,10 +20,18 @@ FAILED=0
 
 # Step 1: Test Python setup (mirrors: Set up Python 3.11)
 echo -e "${YELLOW}Step 1: Testing Python 3.11 setup...${NC}"
-if python3.11 --version 2>/dev/null; then
-    echo -e "${GREEN}✓ Python 3.11 found${NC}"
+PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
+if [ $? -eq 0 ]; then
+    MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+    MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+    if [ "$MAJOR" -eq 3 ] && [ "$MINOR" -ge 11 ]; then
+        echo -e "${GREEN}✓ Python $PYTHON_VERSION found (3.11+ required, matches production)${NC}"
+    else
+        echo -e "${RED}✗ Python $PYTHON_VERSION found, but 3.11+ is required (matches Dockerfile: python:3.11-slim)${NC}"
+        FAILED=1
+    fi
 else
-    echo -e "${RED}✗ Python 3.11 not found. Install with: brew install python@3.11${NC}"
+    echo -e "${RED}✗ Python 3 not found. Install with: brew install python@3.11${NC}"
     FAILED=1
 fi
 echo ""

@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11"]  # Only test 3.11 - matches production and scipy>=1.11.0 requirement
+        python-version: ["3.11"]  # Matches pyproject.toml requires-python (>=3.11) and Dockerfile (python:3.11-slim)
     steps:
       - uses: actions/checkout@v4
       
