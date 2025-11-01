@@ -85,7 +85,7 @@ class TestPerformanceAttributionSystem(unittest.TestCase):
                 'enabled': True,
                 'tracing': {'enabled': True, 'level': 'standard'},
                 'crash_reports': {'enabled': True},
-                'logging': {'execution_trace_file': 'test.jsonl'}
+                'logging': {'execution_trace_file': 'artifacts/logs/test_system_trace.jsonl'}
             }
         }
         
