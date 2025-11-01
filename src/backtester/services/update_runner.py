@@ -24,6 +24,11 @@ from backtester.config import ConfigManager
 LOG_DIR = Path('artifacts/logs')
 LOG_DIR.mkdir(exist_ok=True)
 
+# Update lock to gate restarts during in-flight updates
+LOCK_DIR = Path('artifacts/locks')
+LOCK_DIR.mkdir(parents=True, exist_ok=True)
+LOCK_FILE = LOCK_DIR / 'update.lock'
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -174,6 +179,23 @@ def run_update(target_end_date: str = None) -> Dict[str, Any]:
     Returns:
         Summary dictionary with results
     """
+    # Bail out early if another update is in progress
+    if LOCK_FILE.exists():
+        logger.info("Update already in progress (lock present) - skipping run")
+        return {
+            'status': 'busy',
+            'updated': 0,
+            'skipped': 0,
+            'failed': 0
+        }
+
+    # Acquire lock
+    try:
+        LOCK_FILE.write_text(datetime.utcnow().isoformat())
+    except Exception:
+        # If lock can't be created, continue but log warning
+        logger.warning("Could not create update lock; proceeding without lock")
+
     start_time = datetime.utcnow()
     
     if target_end_date is None:
@@ -326,7 +348,7 @@ def run_update(target_end_date: str = None) -> Dict[str, Any]:
     with open(metadata_path, 'w') as f:
         yaml.dump(metadata, f, default_flow_style=False, sort_keys=False)
     
-    return {
+    summary = {
         'status': 'success',
         'updated': updated,
         'skipped': skipped,
@@ -337,6 +359,15 @@ def run_update(target_end_date: str = None) -> Dict[str, Any]:
         'duration_seconds': duration,
         'removed_markets': removed_markets
     }
+
+    # Release lock
+    try:
+        if LOCK_FILE.exists():
+            LOCK_FILE.unlink()
+    except Exception:
+        pass
+
+    return summary
 
 
 def main():
