@@ -6,7 +6,7 @@ GitHub Actions workflow: `.github/workflows/deploy.yml`
 
 - test (Ubuntu): unit, integration, system, e2e (non-data)
 - build (Ubuntu): build/push Docker image to GHCR
-- deploy (Self-hosted Windows): pull latest and `docker-compose up -d scheduler`
+- deploy (Self-hosted Windows): pull latest and restart scheduler if no update lock
 
 ## Self-Hosted Runner
 
@@ -35,7 +35,12 @@ On the self-hosted machine (PowerShell):
 ```powershell
 cd C:\Users\vfnoc\Documents\backtester\deployment
 docker-compose pull
+$lock = "C:\\Users\\vfnoc\\Documents\\backtester\\artifacts\\locks\\update.lock"
+if (Test-Path $lock) {
+  Write-Host "Update in progress; skipping scheduler restart."
+} else {
 docker-compose up -d scheduler
+}
 docker-compose ps
 ```
 

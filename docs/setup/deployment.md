@@ -118,6 +118,29 @@ docker-compose up -d scheduler
 
 Existing data cache will be preserved.
 
+#### Graceful Scheduler Restarts and Update Lock
+
+- The scheduler is configured with a long stop grace period so in-flight updates can finish on deploy:
+
+```yaml
+services:
+  scheduler:
+    stop_signal: SIGTERM
+    stop_grace_period: 2h
+```
+
+- An update lock at `artifacts/locks/update.lock` prevents restarts while an update is running. The startup scripts skip restarting the scheduler if the lock exists.
+
+```bash
+# scripts/deployment/start.sh (excerpt)
+LOCK_FILE="$PROJECT_ROOT/artifacts/locks/update.lock"
+if [ -f "$LOCK_FILE" ]; then
+  echo "Update in progress; skipping scheduler restart."
+else
+  docker-compose up -d scheduler
+fi
+```
+
 ## Manual Deployment (Non-Docker)
 
 ### Prerequisites

@@ -79,9 +79,14 @@ if ($newFormatCount -lt $expectedCount) {
     Write-Host ""
 }
 
-# Step 3: Start scheduler
+# Step 3: Start scheduler (skip if update lock exists)
+$lockFile = Join-Path $projectRoot "artifacts\locks\update.lock"
+if (Test-Path $lockFile) {
+    Write-Host "⏸  Update in progress (lock present) - skipping scheduler restart" -ForegroundColor Yellow
+} else {
 Write-Host "🚀 Starting scheduler daemon..." -ForegroundColor Yellow
 docker-compose up -d scheduler
+}
 
 # Step 4: Show status
 Write-Host ""

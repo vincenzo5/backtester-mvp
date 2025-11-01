@@ -67,9 +67,14 @@ else
     echo ""
 fi
 
-# Step 3: Start scheduler
+# Step 3: Start scheduler (skip if update lock exists)
+LOCK_FILE="$PROJECT_ROOT/artifacts/locks/update.lock"
+if [ -f "$LOCK_FILE" ]; then
+    echo "⏸  Update in progress (lock present) - skipping scheduler restart"
+else
 echo "🚀 Starting scheduler daemon..."
 docker-compose up -d scheduler
+fi
 
 # Step 4: Show status
 echo ""
