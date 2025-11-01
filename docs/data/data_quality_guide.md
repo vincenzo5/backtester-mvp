@@ -8,28 +8,43 @@ The data quality system automatically scores and grades cached OHLCV data, and c
 
 ### Check Data Quality
 
-```bash
-# Quick assessment (datasets updated today only)
-python3 scripts/assess_all_data_quality.py
+Option A: Use the built-in scorer programmatically (recommended):
 
-# Full assessment (all datasets + liveliness checks)
-python3 scripts/assess_all_data_quality.py --full
+```bash
+python - << 'PY'
+from backtester.data.quality_scorer import assess_data_quality
+from backtester.data.cache_manager import load_manifest
+import json
+
+manifest = load_manifest()
+for key, entry in manifest.items():
+    symbol = entry['symbol']
+    timeframe = entry['timeframe']
+    result = assess_data_quality(symbol, timeframe)
+    print(symbol, timeframe, json.dumps(result))
+PY
+```
+
+Option B: Run tests that exercise the quality pipeline:
+
+```bash
+pytest tests/e2e/test_quality_e2e.py -v
 ```
 
 **Output:**
-- Console shows grades (A-F) and composite scores for each dataset
-- Detailed results logged to `logs/quality_assessment.log`
-- Quality scores saved to `data/quality_metadata.json`
+- Console shows grades (A-F) and composite scores per dataset when using Option A
+- Detailed results should be logged by services under `artifacts/logs/`
+- Quality metadata, when generated, is stored at `data/quality_metadata.json`
 
 ### Analyze Gaps
 
 ```bash
 # View gaps report in terminal
-python3 scripts/analyze_gaps.py
+python3 scripts/diagnostics/analyze_gaps.py
 
 # Save to file
-python3 scripts/analyze_gaps.py --output gaps_report.json
-python3 scripts/analyze_gaps.py --output gaps_report.csv
+python3 scripts/diagnostics/analyze_gaps.py --output gaps_report.json
+python3 scripts/diagnostics/analyze_gaps.py --output gaps_report.csv
 ```
 
 **Output:**
@@ -41,13 +56,13 @@ python3 scripts/analyze_gaps.py --output gaps_report.csv
 
 ```bash
 # Fill all gaps (prioritizes largest first)
-python3 scripts/fill_all_gaps.py
+python3 scripts/data/fill_all_gaps.py
 
 # Fill only top N gaps
-python3 scripts/fill_all_gaps.py --max-gaps 10
+python3 scripts/data/fill_all_gaps.py --max-gaps 10
 
 # Use different priority strategy
-python3 scripts/fill_all_gaps.py --priority lowest_coverage
+python3 scripts/data/fill_all_gaps.py --priority lowest_coverage
 ```
 
 **Output:**
@@ -58,9 +73,7 @@ python3 scripts/fill_all_gaps.py --priority lowest_coverage
 ## Typical Workflow
 
 ### 1. Assess Current Quality
-```bash
-python3 scripts/assess_all_data_quality.py --full
-```
+Use the Option A snippet above to programmatically assess all datasets.
 
 Review the output to see:
 - Overall grade distribution (how many A/B/C/D/F datasets)
@@ -87,9 +100,7 @@ python3 scripts/fill_all_gaps.py --max-gaps 50
 ```
 
 ### 4. Re-assess After Fixes
-```bash
-python3 scripts/assess_all_data_quality.py --full
-```
+Run the Option A snippet again and compare results.
 
 Verify that:
 - Coverage scores improved
@@ -136,7 +147,7 @@ Weighted average of all component scores, converted to grade.
 ### Check Specific Dataset Quality
 
 ```python
-from data.quality_metadata import load_quality_metadata_entry
+from backtester.data.quality_metadata import load_quality_metadata_entry
 
 metadata = load_quality_metadata_entry('BTC/USD', '1h')
 print(f"Grade: {metadata['quality_scores']['grade']}")
@@ -147,7 +158,7 @@ print(f"Coverage: {metadata['quality_scores']['coverage']}")
 ### Check Manifest (Quick Lookup)
 
 ```python
-from data.cache_manager import get_manifest_entry
+from backtester.data.cache_manager import get_manifest_entry
 
 entry = get_manifest_entry('BTC/USD', '1h')
 print(f"Grade: {entry.get('quality_grade', 'Not Assessed')}")
@@ -162,7 +173,7 @@ The system also runs automatically via the scheduler:
 - **Weekly Full Assessment**: Sunday 2 AM UTC - assesses all datasets
 - **Weekly Gap Filling**: Saturday 3 AM UTC - fills gaps automatically
 
-See `config/config.yaml` for scheduling configuration.
+See `deployment/docker-compose.yml` (environment variables) and `config/debug.yaml` for logging/rotation configuration.
 
 ## Troubleshooting
 
@@ -186,16 +197,15 @@ See `config/config.yaml` for scheduling configuration.
 
 - **Quality Metadata**: `data/quality_metadata.json` (detailed scores)
 - **Cache Manifest**: `data/.cache_manifest.json` (lean info)
-- **Assessment Logs**: `logs/quality_assessment.log`
-- **Gap Filling Logs**: `logs/gap_filling.log`
+- **Assessment Logs**: `artifacts/logs/quality_assessment.log`
+- **Gap Filling Logs**: `artifacts/logs/gap_filling.log`
 
 ## Command Reference
 
 | Task | Command |
 |------|---------|
-| Assess (quick) | `python3 scripts/assess_all_data_quality.py` |
-| Assess (full) | `python3 scripts/assess_all_data_quality.py --full` |
-| Analyze gaps | `python3 scripts/analyze_gaps.py` |
-| Fill gaps | `python3 scripts/fill_all_gaps.py` |
-| Fill limited | `python3 scripts/fill_all_gaps.py --max-gaps 10` |
+| Assess (programmatic) | see Option A snippet above |
+| Analyze gaps | `python3 scripts/diagnostics/analyze_gaps.py` |
+| Fill gaps | `python3 scripts/data/fill_all_gaps.py` |
+| Fill limited | `python3 scripts/data/fill_all_gaps.py --max-gaps 10` |
 

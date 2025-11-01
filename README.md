@@ -128,11 +128,11 @@ The system includes an automated data collection pipeline:
 - **Auto-cleanup**: Removes invalid markets from metadata
 - **Docker-ready**: Containerized for easy deployment
 
-See [docs/data_pipeline.md](docs/data_pipeline.md) for detailed information.
+See [docs/data/data_pipeline.md](docs/data/data_pipeline.md) for detailed information.
 
 ## Deployment
 
-For production deployment, see [docs/deployment.md](docs/deployment.md).
+For production deployment, see [docs/setup/deployment.md](docs/setup/deployment.md).
 
 ### Key Features:
 - Docker containerization for portability
@@ -142,9 +142,14 @@ For production deployment, see [docs/deployment.md](docs/deployment.md).
 
 ## Documentation
 
-- [Data Pipeline Guide](docs/data_pipeline.md) - How data collection works
-- [Deployment Guide](docs/deployment.md) - Docker and manual deployment
-- [Interface Contract](docs/interface_contract.md) - Stable API for cache system compatibility
+- [Data Pipeline Guide](docs/data/data_pipeline.md) - How data collection works
+- [Deployment Guide](docs/setup/deployment.md) - Docker and manual deployment
+- [CI/CD Overview](docs/setup/ci_cd.md) - Workflow, runner, and image publishing
+- [Configuration Reference](docs/config/configuration_reference.md) - Domain YAMLs and typed accessors
+- [Walk-Forward & Filters Guide](docs/strategies/walkforward_guide.md) - Walk-forward usage and filters
+- [Debugging & Tracing](docs/ops/debugging_and_tracing.md) - Tracer and crash reporter
+- [Performance Attribution](docs/metrics/performance_attribution.md) - Where and how metrics are logged
+- [Interface Contract](docs/overview/interface_contract.md) - Stable cache API
 
 ## Development Safety
 
@@ -154,7 +159,7 @@ The cache system maintains a **stable interface contract** between data collecti
 - ✅ Update backtest code without affecting running data collection
 - ✅ Share improvements across both systems
 
-See [Interface Contract](docs/interface_contract.md) for details. Run compatibility tests:
+See [Interface Contract](docs/overview/interface_contract.md) for details. Run compatibility tests:
 
 ```bash
 pytest tests/test_cache_compatibility.py -v

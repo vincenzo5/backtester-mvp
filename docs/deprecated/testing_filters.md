@@ -1,6 +1,11 @@
-# Testing the Filter System
+# Testing the Filter System (Deprecated)
 
-This guide explains how to test the walk-forward filter system.
+This guide has been consolidated into the Walk-Forward Optimization & Filters Guide.
+
+See `../strategies/walkforward_guide.md` for:
+- Walk-forward usage and configuration
+- Filters configuration and verification
+- Test commands and troubleshooting
 
 ## Quick Test Commands
 

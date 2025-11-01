@@ -53,7 +53,8 @@ Both are designed for **pre-computation** before backtests run, making them opti
 ### Quick Start
 
 ```python
-from indicators import IndicatorLibrary, IndicatorSpec
+from backtester.indicators.library import IndicatorLibrary
+from backtester.indicators.base import IndicatorSpec
 
 # Create library
 lib = IndicatorLibrary()
@@ -83,8 +84,8 @@ Built-in indicators (wrapping `ta` library):
 Strategies declare required indicators via the `get_required_indicators()` classmethod:
 
 ```python
-from strategies.base_strategy import BaseStrategy
-from indicators.base import IndicatorSpec
+from backtester.strategies.base_strategy import BaseStrategy
+from backtester.indicators.base import IndicatorSpec
 
 class MyStrategy(BaseStrategy):
     @classmethod
@@ -111,7 +112,7 @@ class MyStrategy(BaseStrategy):
 Register custom indicator functions:
 
 ```python
-from indicators.base import register_custom_indicator
+from backtester.indicators.base import register_custom_indicator
 import pandas as pd
 
 def my_volume_indicator(df, params):
@@ -154,7 +155,7 @@ IndicatorSpec('BBANDS', {...}, 'BB')
 ### Quick Start
 
 ```python
-from data.sources.onchain import MockOnChainProvider
+from backtester.data.sources.onchain import MockOnChainProvider
 
 # Create provider
 provider = MockOnChainProvider()
@@ -171,8 +172,8 @@ aligned_data = provider.align_to_ohlcv(raw_data, ohlcv_df, prefix='onchain_')
 Strategies declare required data sources via `get_required_data_sources()`:
 
 ```python
-from strategies.base_strategy import BaseStrategy
-from data.sources.onchain import MockOnChainProvider
+from backtester.strategies.base_strategy import BaseStrategy
+from backtester.data.sources.onchain import MockOnChainProvider
 
 class MyStrategy(BaseStrategy):
     @classmethod
@@ -194,7 +195,7 @@ class MyStrategy(BaseStrategy):
 Implement the `DataSourceProvider` interface:
 
 ```python
-from data.sources.base import DataSourceProvider
+from backtester.data.sources.base import DataSourceProvider
 import pandas as pd
 
 class MyDataSource(DataSourceProvider):
@@ -310,7 +311,7 @@ class OnChainRSIStrategy(BaseStrategy):
 ### Example 3: Custom Indicator
 
 ```python
-from indicators.base import register_custom_indicator
+from backtester.indicators.base import register_custom_indicator
 
 def price_momentum(df, params):
     """Price change over N periods"""

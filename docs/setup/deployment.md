@@ -31,12 +31,9 @@ The scheduler will run continuously and update data daily at 1:00 AM UTC (config
 
 ### Running Backtests
 
-```bash
-# Run backtests using the backtest service
-docker-compose run --rm backtest
+Run backtests directly on your host (development workflow):
 
-# Or access the container interactively
-docker-compose run --rm backtest bash
+```bash
 python main.py
 ```
 
@@ -67,7 +64,7 @@ services:
 
 #### Data Collection Start Date
 
-Edit `config/config.yaml`:
+Edit `config/data.yaml`:
 
 ```yaml
 data:
@@ -96,9 +93,9 @@ All data is persisted in host directories:
 
 - `./data` - Cached OHLCV data (CSV files)
 - `./config` - Configuration files
-- `./logs` - Application logs
-- `./reports` - Backtest reports
-- `./performance` - Performance metrics
+- `./artifacts/logs` - Application logs
+- `./artifacts/reports` - Backtest reports
+- `./artifacts/performance` - Performance metrics
 
 These directories are mounted as volumes, so data persists across container restarts.
 
@@ -138,7 +135,7 @@ pip install -r requirements.txt
 
 2. **Initial data collection:**
 ```bash
-python scripts/bulk_fetch.py
+python scripts/data/bulk_fetch.py
 ```
 
 3. **Setup daily updates:**
@@ -149,7 +146,7 @@ python scripts/bulk_fetch.py
 crontab -e
 
 # Add this line (runs daily at 1 AM UTC)
-0 1 * * * cd /path/to/backtester-mvp && python services/update_runner.py >> logs/cron.log 2>&1
+0 1 * * * cd /path/to/backtester-mvp && python -m backtester.services.update_runner >> artifacts/logs/cron.log 2>&1
 ```
 
 **Windows (Task Scheduler):**
@@ -159,7 +156,7 @@ crontab -e
 3. Set trigger to "Daily" at 1:00 AM
 4. Set action to "Start a program"
 5. Program: `python`
-6. Arguments: `services/update_runner.py`
+6. Arguments: `-m backtester.services.update_runner`
 7. Start in: `C:\path\to\backtester-mvp`
 
 ### Running Backtests
@@ -184,20 +181,20 @@ docker-compose logs --tail=100 scheduler
 cat data/.cache_manifest.json | jq
 
 # Or in Python
-python -c "from data.cache_manager import load_manifest; import json; print(json.dumps(load_manifest(), indent=2))"
+python -c "from backtester.data.cache_manager import load_manifest; import json; print(json.dumps(load_manifest(), indent=2))"
 ```
 
 ### Check Logs
 
 ```bash
 # Daily update summary
-tail -f logs/daily_update.log
+tail -f artifacts/logs/daily_update.log
 
 # Errors
-tail -f logs/fetch_errors.log
+tail -f artifacts/logs/fetch_errors.log
 
 # Validation issues
-tail -f logs/data_validation.log
+tail -f artifacts/logs/data_validation.log
 ```
 
 ## Troubleshooting
@@ -219,17 +216,17 @@ docker-compose restart scheduler
 
 1. **Check if market exists:**
 ```bash
-python scripts/refetch_market.py BTC/USD 1h
+python scripts/data/refetch_market.py BTC/USD 1h
 ```
 
 2. **Check logs for errors:**
 ```bash
-cat logs/fetch_errors.log
+cat artifacts/logs/fetch_errors.log
 ```
 
 3. **Manually re-fetch:**
 ```bash
-python scripts/refetch_market.py BTC/USD 1h --force
+python scripts/data/refetch_market.py BTC/USD 1h --force
 ```
 
 ### Cache Corruption

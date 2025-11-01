@@ -15,13 +15,13 @@ The data collection system provides automated fetching, caching, and updating of
    - `updater.py` - Smart delta update orchestration
 
 2. **Services** (`services/`)
-   - `update_runner.py` - Daily delta update service
-   - `scheduler_daemon.py` - Background scheduler for automated updates
+   - `python -m backtester.services.update_runner` - Daily delta update service
+   - `python -m backtester.services.scheduler_daemon` - Background scheduler for automated updates
 
 3. **Scripts** (`scripts/`)
-   - `bulk_fetch.py` - Initial historical data collection
-   - `refetch_market.py` - Manual re-fetch utility
-   - `migrate_cache.py` - Cache file migration tool
+   - `data/bulk_fetch.py` - Initial historical data collection
+   - `data/refetch_market.py` - Manual re-fetch utility
+   - `setup/migrate_cache.py` - Cache file migration tool
 
 ## Data Flow
 
@@ -151,7 +151,7 @@ If exchange returns "market not found":
 
 ### Historical Start Date
 
-Set in `config.yaml`:
+Set in `config/data.yaml`:
 ```yaml
 data:
   historical_start_date: "2017-01-01"  # Configurable
@@ -159,7 +159,7 @@ data:
 
 ### Update Schedule
 
-Set via environment variables or in `scheduler_daemon.py`:
+Set via environment variables or in `deployment/docker-compose.yml`:
 - Default: 1:00 AM UTC daily
 - Configurable via `UPDATE_HOUR` and `UPDATE_MINUTE` env vars
 
@@ -169,7 +169,7 @@ Set via environment variables or in `scheduler_daemon.py`:
 
 ```bash
 # Fetch all historical data
-python scripts/bulk_fetch.py
+python scripts/data/bulk_fetch.py
 
 # Or with Docker
 docker-compose run --rm bulk-fetch
@@ -179,10 +179,10 @@ docker-compose run --rm bulk-fetch
 
 ```bash
 # Run manually
-python services/update_runner.py
+python -m backtester.services.update_runner
 
 # Or start scheduler daemon
-python services/scheduler_daemon.py
+python -m backtester.services.scheduler_daemon
 
 # Or with Docker
 docker-compose up -d scheduler
@@ -192,30 +192,30 @@ docker-compose up -d scheduler
 
 ```bash
 # Re-fetch specific market
-python scripts/refetch_market.py BTC/USD 1h
+python scripts/data/refetch_market.py BTC/USD 1h
 
 # With force flag (delete existing cache)
-python scripts/refetch_market.py BTC/USD 1h --force
+python scripts/data/refetch_market.py BTC/USD 1h --force
 ```
 
 ### Migration
 
 ```bash
 # Migrate old cache files to new format
-python scripts/migrate_cache.py
+python scripts/setup/migrate_cache.py
 ```
 
 ## Monitoring
 
 ### Log Files
 
-- `logs/daily_update.log` - Update summary and progress
-- `logs/fetch_errors.log` - API errors and failures
-- `logs/data_validation.log` - Data quality issues (gaps, duplicates)
+- `artifacts/logs/daily_update.log` - Update summary and progress
+- `artifacts/logs/fetch_errors.log` - API errors and failures
+- `artifacts/logs/data_validation.log` - Data quality issues (gaps, duplicates)
 
 ### Performance Metrics
 
-- `performance/fetch_performance.jsonl` - Fetch timing and statistics
+- `artifacts/logs/bulk_fetch_performance.jsonl` - Fetch timing and statistics
 - JSON Lines format for easy parsing
 
 ## Best Practices

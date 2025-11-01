@@ -4,16 +4,11 @@ This guide shows you how to test the backtesting system manually.
 
 ## Quick Test (Single Market)
 
-Test with a single market using the `--quick` flag:
+Configure via YAML (no CLI flags). Use `config/profiles/quick.yaml` and domain configs.
 
 ```bash
-python main.py --quick
+python main.py
 ```
-
-This uses the `quick_test` configuration from `config.yaml`:
-- Single symbol: BTC/USD
-- Single timeframe: 1h
-- Verbose output enabled
 
 **Expected output:**
 - Backtest runs successfully
@@ -38,41 +33,41 @@ This tests:
 
 ### Test SMACross Strategy
 
-```bash
-# Edit config.yaml:
+Update `config/strategy.yaml`:
+
+```yaml
 strategy:
   name: sma_cross
-  parameters:
-    fast_period: 20
-    slow_period: 50
-
-python main.py --quick
 ```
 
-### Test RSISMA Strategy (with indicators)
-
-```bash
-# Edit config.yaml:
-strategy:
-  name: rsi_sma
-  parameters:
-    sma_period: 20
-    rsi_period: 14
-    rsi_oversold: 30
-    rsi_overbought: 70
-
-python main.py --quick
-```
-
-## Testing Multiple Markets
-
-Run backtests on all configured markets:
+Then run:
 
 ```bash
 python main.py
 ```
 
-This uses the full `exchange` configuration from `config.yaml`.
+### Test RSISMA Strategy (with indicators)
+
+Update `config/strategy.yaml`:
+
+```yaml
+strategy:
+  name: rsi_sma
+```
+
+Then run:
+
+```bash
+python main.py
+```
+
+## Testing Multiple Markets
+
+Run backtests on all configured markets (from `config/markets.yaml` and `config/data.yaml`):
+
+```bash
+python main.py
+```
 
 ## What to Check
 
@@ -100,7 +95,7 @@ When using strategies with indicators (like `rsi_sma`), check:
 
 Results are saved to:
 ```
-reports/backtest_<strategy_name>_<timestamp>.csv
+artifacts/reports/backtest_<strategy_name>_<timestamp>.csv
 ```
 
 You can open this CSV to see detailed results.
@@ -114,7 +109,7 @@ You can open this CSV to see detailed results.
 **Solution:**
 ```bash
 # Fetch data first
-python scripts/bulk_fetch.py
+python scripts/data/bulk_fetch.py
 ```
 
 ### "Invalid comparison between datetime"
@@ -123,16 +118,7 @@ python scripts/bulk_fetch.py
 
 **Status:** ✅ Fixed in `backtest/execution/parallel.py` - should not occur anymore.
 
-If you see this, verify the fix was applied:
-```python
-# In backtest/execution/parallel.py, lines 57-63 should have:
-if df.index.tz is not None:
-    from datetime import timezone
-    if start_dt.tzinfo is None:
-        start_dt = start_dt.replace(tzinfo=timezone.utc)
-    if end_dt.tzinfo is None:
-        end_dt = end_dt.replace(tzinfo=timezone.utc)
-```
+If you see this, ensure you're on latest `main` and re-run.
 
 ### Strategy Not Found
 

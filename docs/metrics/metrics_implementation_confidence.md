@@ -258,13 +258,8 @@ The remaining test failures appear to be unrelated to the metrics implementation
 ✅ 44/44 metrics-related tests passing
 ```
 
-**Run integration test:**
+**Run metrics-related tests:**
 ```bash
-python scripts/tests/test_metrics_integration.py
-```
-
-**Run all metrics tests:**
-```bash
-pytest tests/ -k "metrics" -v
+pytest tests -k metrics -v
 ```
 
