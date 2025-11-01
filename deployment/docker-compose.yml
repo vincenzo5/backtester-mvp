@@ -8,6 +8,8 @@ services:
     container_name: data-scheduler
     command: python -m backtester.services.scheduler_daemon
     restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 2h
     volumes:
       - ../data:/app/data           # Persist cached data
       - ../config:/app/config                   # Config files (read/write)
