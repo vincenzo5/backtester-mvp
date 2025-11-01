@@ -88,14 +88,14 @@ jobs:
       - name: Deploy with docker-compose
         shell: powershell
         run: |
-          cd C:\Users\vfnoc\Documents\backtester\deployment
+          cd C:\backtester\deployment
           docker-compose pull
           
           # Check if data exists - if not, run bulk fetch in background
           $CSV_COUNT = (Get-ChildItem -Path ..\data\*.csv -ErrorAction SilentlyContinue | Measure-Object).Count
           if ($CSV_COUNT -eq 0) {
             Write-Host "No cache files found - starting bulk fetch in background..."
-            Start-Process powershell -ArgumentList "-Command", "cd C:\Users\vfnoc\Documents\backtester\deployment; docker-compose run --rm bulk-fetch > ..\artifacts\logs\bulk_fetch_deploy.log 2>&1" -WindowStyle Hidden
+            Start-Process powershell -ArgumentList "-Command", "cd C:\backtester\deployment; docker-compose run --rm bulk-fetch > ..\artifacts\logs\bulk_fetch_deploy.log 2>&1" -WindowStyle Hidden
             Write-Host "Bulk fetch started in background"
           } else {
             Write-Host "Found $CSV_COUNT cache files - skipping bulk fetch"
