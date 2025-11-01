@@ -37,7 +37,7 @@ jobs:
       - name: Run E2E tests (if data available)
         run: pytest tests/e2e/ -v -m "not requires_data" --tb=short || true
 
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -75,17 +75,30 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/backtester-mvp:latest
             ghcr.io/${{ github.repository_owner }}/backtester-mvp:${{ github.sha }}
+
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Pull latest image
+        run: docker pull ghcr.io/${{ github.repository_owner }}/backtester-mvp:latest
       
-      - name: Deploy to iBuyPower
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.PRODUCTION_HOST }}
-          username: ${{ secrets.PRODUCTION_USER }}
-          key: ${{ secrets.PRODUCTION_SSH_KEY }}
-          script: |
-            cd ${{ secrets.PRODUCTION_PATH }}
-            docker pull ghcr.io/${{ github.repository_owner }}/backtester-mvp:latest
-            cd deployment
-            docker-compose pull
-            docker-compose up -d --no-deps scheduler
-            docker-compose ps
+      - name: Deploy with docker-compose
+        shell: pwsh
+        run: |
+          cd C:\Users\vfnoc\Documents\backtester\deployment
+          docker-compose pull
+          
+          # Check if data exists - if not, run bulk fetch in background
+          $CSV_COUNT = (Get-ChildItem -Path ..\data\*.csv -ErrorAction SilentlyContinue | Measure-Object).Count
+          if ($CSV_COUNT -eq 0) {
+            Write-Host "No cache files found - starting bulk fetch in background..."
+            Start-Process powershell -ArgumentList "-Command", "cd C:\Users\vfnoc\Documents\backtester\deployment; docker-compose run --rm bulk-fetch > ..\artifacts\logs\bulk_fetch_deploy.log 2>&1" -WindowStyle Hidden
+            Write-Host "Bulk fetch started in background"
+          } else {
+            Write-Host "Found $CSV_COUNT cache files - skipping bulk fetch"
+          }
+          
+          docker-compose up -d --no-deps scheduler
+          docker-compose ps
