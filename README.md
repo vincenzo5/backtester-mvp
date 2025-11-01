@@ -1,4 +1,5 @@
 # Crypto Backtesting Engine
+Atlas — Automated Trading Logic & Strategy Analysis System
 
 A simple but powerful cryptocurrency backtesting engine built with Python, ccxt, and backtrader.
 
@@ -94,7 +95,7 @@ python main.py  # Run backtests locally for development
 ## Project Structure
 
 ```
-backtester-mvp/
+atlas/
 ├── src/
 │   └── backtester/      # Main package (backtest, cli, config, data, indicators, strategies, services)
 ├── tests/               # Test suite

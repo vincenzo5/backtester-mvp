@@ -169,7 +169,7 @@ python scripts/data/bulk_fetch.py
 crontab -e
 
 # Add this line (runs daily at 1 AM UTC)
-0 1 * * * cd /path/to/backtester-mvp && python -m backtester.services.update_runner >> artifacts/logs/cron.log 2>&1
+0 1 * * * cd /path/to/atlas && python -m backtester.services.update_runner >> artifacts/logs/cron.log 2>&1
 ```
 
 **Windows (Task Scheduler):**
@@ -180,7 +180,7 @@ crontab -e
 4. Set action to "Start a program"
 5. Program: `python`
 6. Arguments: `-m backtester.services.update_runner`
-7. Start in: `C:\path\to\backtester-mvp`
+7. Start in: `C:\path\to\atlas`
 
 ### Running Backtests
 

@@ -14,7 +14,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT/deployment"
 
 # Step 1: Build image if it doesn't exist or is outdated
-if ! docker images | grep -q "backtester-mvp.*latest" || [ "$1" == "--rebuild" ]; then
+if ! docker images | grep -q "atlas.*latest" || [ "$1" == "--rebuild" ]; then
     echo "📦 Building Docker image..."
     docker-compose build
     echo ""

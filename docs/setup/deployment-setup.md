@@ -35,7 +35,7 @@ On your iBuyPower machine:
 cd C:\Users\vfnoc\Documents
 
 # Clone the repository
-git clone https://github.com/vincenzo5/backtester-mvp.git backtester
+git clone https://github.com/vincenzo5/atlas.git atlas
 ```
 
 If the repository already exists at this location, you can skip this step or pull the latest changes:
@@ -49,7 +49,7 @@ git pull
 ### 3a. Create Runner on GitHub
 
 1. Navigate to repository settings:
-   - URL: `https://github.com/vincenzo5/backtester-mvp/settings/actions/runners`
+   - URL: `https://github.com/vincenzo5/atlas/settings/actions/runners`
 2. Click **"New self-hosted runner"**
 3. Select **"Windows"** as the operating system
 4. GitHub will display setup instructions - **keep this page open**
@@ -72,7 +72,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory("$PWD/actions-runner-win-x64-2.311.0.zip", "$PWD")
 
 # Configure the runner (use the token from GitHub's page)
-./config.cmd --url https://github.com/vincenzo5/backtester-mvp --token <YOUR_TOKEN>
+./config.cmd --url https://github.com/vincenzo5/atlas --token <YOUR_TOKEN>
 
 # When prompted:
 # - Runner name: "ibuypower-windows"
@@ -97,7 +97,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 ### 3d. Verify Runner is Online
 
-1. Go back to GitHub: `https://github.com/vincenzo5/backtester-mvp/settings/actions/runners`
+1. Go back to GitHub: `https://github.com/vincenzo5/atlas/settings/actions/runners`
 2. You should see **"ibuypower-windows"** runner with green **"Idle"** status
 3. If it shows offline, check service status on Windows and runner logs
 
@@ -137,7 +137,7 @@ On your iBuyPower machine:
 
 ```powershell
 # Navigate to the repository
-cd C:\Users\vfnoc\Documents\backtester
+cd C:\Users\vfnoc\Documents\atlas
 
 # Verify Docker is running
 docker ps
@@ -154,7 +154,7 @@ If all commands work, you're ready for automated deployments!
 1. **Trigger a deployment:**
    - Push to `main` branch OR
    - Go to Actions tab and manually trigger workflow
-   - URL: `https://github.com/vincenzo5/backtester-mvp/actions`
+   - URL: `https://github.com/vincenzo5/atlas/actions`
 
 2. **Watch GitHub Actions:**
    - You should see a workflow run called "Build, Test, and Deploy"
@@ -164,7 +164,7 @@ If all commands work, you're ready for automated deployments!
 
 3. **Verify deployment on iBuyPower:**
    ```powershell
-   cd C:\Users\vfnoc\Documents\backtester\deployment
+   cd C:\Users\vfnoc\Documents\atlas\deployment
    docker-compose ps
    ```
    
@@ -312,7 +312,7 @@ If all commands work, you're ready for automated deployments!
 
 3. **Check image pull:**
    ```powershell
-   docker pull ghcr.io/vincenzo5/backtester-mvp:latest
+docker pull ghcr.io/vincenzo5/atlas:latest
    ```
    Should pull successfully
 

@@ -73,8 +73,8 @@ jobs:
           file: ./deployment/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/backtester-mvp:latest
-            ghcr.io/${{ github.repository_owner }}/backtester-mvp:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/atlas:latest
+            ghcr.io/${{ github.repository_owner }}/atlas:${{ github.sha }}
 
   deploy:
     runs-on: self-hosted
@@ -83,19 +83,19 @@ jobs:
     steps:
       - name: Pull latest image
         shell: powershell
-        run: docker pull ghcr.io/${{ github.repository_owner }}/backtester-mvp:latest
+        run: docker pull ghcr.io/${{ github.repository_owner }}/atlas:latest
       
       - name: Deploy with docker-compose
         shell: powershell
         run: |
-          cd C:\backtester\deployment
+          cd C:\atlas\deployment
           docker-compose pull
           
           # Check if data exists - if not, run bulk fetch in background
           $CSV_COUNT = (Get-ChildItem -Path ..\data\*.csv -ErrorAction SilentlyContinue | Measure-Object).Count
           if ($CSV_COUNT -eq 0) {
             Write-Host "No cache files found - starting bulk fetch in background..."
-            Start-Process powershell -ArgumentList "-Command", "cd C:\backtester\deployment; docker-compose run --rm bulk-fetch > ..\artifacts\logs\bulk_fetch_deploy.log 2>&1" -WindowStyle Hidden
+            Start-Process powershell -ArgumentList "-Command", "cd C:\atlas\deployment; docker-compose run --rm bulk-fetch > ..\artifacts\logs\bulk_fetch_deploy.log 2>&1" -WindowStyle Hidden
             Write-Host "Bulk fetch started in background"
           } else {
             Write-Host "Found $CSV_COUNT cache files - skipping bulk fetch"

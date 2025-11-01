@@ -1,7 +1,7 @@
 services:
   # Scheduler service - runs continuously and updates data daily
   scheduler:
-    image: ghcr.io/vincenzo5/backtester-mvp:latest
+    image: ghcr.io/vincenzo5/atlas:latest
     build:  # Keep as fallback for local development
       context: ..
       dockerfile: deployment/Dockerfile
@@ -27,7 +27,7 @@ services:
       start_period: 120s
     depends_on: []
     networks:
-      - backtester-network
+      - atlas-network
 
   # Backtest service - removed (develop separately)
   # Run backtests directly: python main.py
@@ -48,9 +48,9 @@ services:
     profiles:
       - tools  # Don't start automatically
     networks:
-      - backtester-network
+      - atlas-network
 
 networks:
-  backtester-network:
+  atlas-network:
     driver: bridge
 

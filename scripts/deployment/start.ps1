@@ -13,7 +13,7 @@ $deploymentDir = Join-Path $projectRoot "deployment"
 Set-Location $deploymentDir
 
 # Step 1: Build image if it doesn't exist
-$imageExists = docker images | Select-String "backtester-mvp.*latest"
+$imageExists = docker images | Select-String "atlas.*latest"
 
 if (-not $imageExists -or $args[0] -eq "--rebuild") {
     Write-Host "📦 Building Docker image..." -ForegroundColor Yellow

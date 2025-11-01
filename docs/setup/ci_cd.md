@@ -17,7 +17,7 @@ Windows machine (`ibuypower-windows`). Setup steps are in `docs/deployment-setup
 
 ## Images
 
-- Pushed to `ghcr.io/<owner>/backtester-mvp:latest` and SHA-tagged
+- Pushed to `ghcr.io/<owner>/atlas:latest` and SHA-tagged
 
 ## Manual Triggers
 
@@ -25,7 +25,7 @@ Windows machine (`ibuypower-windows`). Setup steps are in `docs/deployment-setup
 
 ## Deployment Location
 
-- Runner operates in `C:\Users\vfnoc\Documents\backtester\deployment`
+- Runner operates in `C:\Users\vfnoc\Documents\atlas\deployment`
 - Uses `deployment/docker-compose.yml`
 
 ## Useful Commands
@@ -33,9 +33,9 @@ Windows machine (`ibuypower-windows`). Setup steps are in `docs/deployment-setup
 On the self-hosted machine (PowerShell):
 
 ```powershell
-cd C:\Users\vfnoc\Documents\backtester\deployment
+cd C:\Users\vfnoc\Documents\atlas\deployment
 docker-compose pull
-$lock = "C:\\Users\\vfnoc\\Documents\\backtester\\artifacts\\locks\\update.lock"
+$lock = "C:\\Users\\vfnoc\\Documents\\atlas\\artifacts\\locks\\update.lock"
 if (Test-Path $lock) {
   Write-Host "Update in progress; skipping scheduler restart."
 } else {

@@ -1,4 +1,5 @@
 # Documentation Index
+Atlas — Automated Trading Logic & Strategy Analysis System
 
 ## Overview
 - [Interface Contract](overview/interface_contract.md)
