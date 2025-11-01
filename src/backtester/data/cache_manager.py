@@ -7,6 +7,7 @@ and manages the cache manifest for metadata tracking.
 
 import os
 import json
+from tempfile import NamedTemporaryFile
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -101,8 +102,11 @@ def write_cache(symbol: str, timeframe: str, df: pd.DataFrame, source_exchange: 
     df_with_named_index = df.copy()
     df_with_named_index.index.name = 'datetime'
     
-    # Write to CSV
-    df_with_named_index.to_csv(cache_file)
+    # Write to CSV atomically: temp file then replace
+    with NamedTemporaryFile('w', delete=False, dir=str(cache_file.parent), prefix=cache_file.name + '.', suffix='.tmp') as tmp:
+        df_with_named_index.to_csv(tmp.name)
+        tmp_path = tmp.name
+    os.replace(tmp_path, cache_file)
     
     # Update manifest
     update_manifest(symbol, timeframe, df, source_exchange=source_exchange)
@@ -192,9 +196,10 @@ def load_manifest() -> Dict[str, Any]:
 def save_manifest(manifest: Dict[str, Any]):
     """Save cache manifest to disk."""
     ensure_cache_dir()
-    
-    with open(MANIFEST_FILE, 'w') as f:
+    tmp_path = MANIFEST_FILE.with_suffix('.json.tmp')
+    with open(tmp_path, 'w') as f:
         json.dump(manifest, f, indent=2)
+    os.replace(tmp_path, MANIFEST_FILE)
 
 
 def get_manifest_entry(symbol: str, timeframe: str) -> Optional[Dict[str, Any]]:
